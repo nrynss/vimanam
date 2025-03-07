@@ -8,8 +8,6 @@ on:
 permissions:
   contents: write
   packages: write
-  issues: write
-  pull-requests: write
 
 jobs:
   create-release:
@@ -22,7 +20,7 @@ jobs:
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
           release_name: Vimanam ${{ github.ref_name }}
@@ -41,7 +39,7 @@ jobs:
             - Sorting options for endpoints
 
             ## Downloads:
-            Binaries for Linux, macOS, and Windows are attached to this release.
+            Binaries for Linux, macOS (Intel & Apple Silicon), and Windows are attached to this release.
 
   build-and-upload:
     name: Build and Upload
@@ -50,49 +48,53 @@ jobs:
     strategy:
       matrix:
         include:
+          # Linux (x86_64)
           - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
             artifact_name: vimanam
-            asset_name: vimanam-linux-amd64
+            asset_name: vimanam-linux-x86_64
+
+          # Windows (x86_64)
           - os: windows-latest
+            target: x86_64-pc-windows-msvc
             artifact_name: vimanam.exe
-            asset_name: vimanam-windows-amd64.exe
+            asset_name: vimanam-windows-x86_64.exe
+
+          # macOS (Intel x86_64)
           - os: macos-latest
+            target: x86_64-apple-darwin
             artifact_name: vimanam
-            asset_name: vimanam-macos-amd64
+            asset_name: vimanam-macos-x86_64
+
+          # macOS (ARM64 / Apple Silicon)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: vimanam
+            asset_name: vimanam-macos-arm64
 
     steps:
       - uses: actions/checkout@v3
+
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
+          target: ${{ matrix.target }}
           override: true
 
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release
+          args: --release --target ${{ matrix.target }}
 
-      - name: Upload Release Asset (Linux/macOS)
-        if: matrix.os != 'windows-latest'
+      - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
-
-      - name: Upload Release Asset (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/release/${{ matrix.artifact_name }}
+          asset_path: ./target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
           asset_name: ${{ matrix.asset_name }}
           asset_content_type: application/octet-stream
