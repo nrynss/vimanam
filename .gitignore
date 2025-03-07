@@ -1,0 +1,56 @@
+# Rust specific files
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo.lock should be included for applications
+# See https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html
+# Cargo.lock
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+*.DS_Store
+*.iml
+.project
+.classpath
+.settings/
+
+# Generated test output and local data
+output.md
+*.md
+!README.md
+examples/*.md
+tests/output/
+openapi*.json
+swagger*.json
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+log/
+logs/
+
+# Build artifacts
+dist/
+build/
+
+# Project specific artifacts
+openapiv2.swagger.json
+
+# OS generated files
+Thumbs.db
+.directory
