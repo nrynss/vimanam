@@ -1,17 +1,36 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// OpenAPI spec model. This is a simplified version focused on what we need for documentation.
+/// OpenAPI spec model with flexibility for both 2.0 and 3.0 formats
 #[derive(Debug, Deserialize, Serialize)]
 pub struct OpenApiSpec {
-    pub swagger: String,
+    // Support both "swagger" (2.0) and "openapi" (3.0+) version identifiers
+    #[serde(rename = "swagger", alias = "openapi", default)]
+    pub spec_version: Option<String>,
+
     pub info: Info,
+
+    // Tags are optional
     pub tags: Option<Vec<Tag>>,
+
+    // Paths are mandatory
     pub paths: HashMap<String, PathItem>,
-    // We're not including all OpenAPI fields, just what we need
+
+    // Optional servers field (OpenAPI 3.0+)
+    pub servers: Option<Vec<Server>>,
+
+    // Optional components field (OpenAPI 3.0+)
+    pub components: Option<Components>,
+
+    // Optional security field
+    pub security: Option<Vec<HashMap<String, Vec<String>>>>,
+
+    // Capture all other fields we don't explicitly model
+    #[serde(flatten)]
+    pub extensions: HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Info {
     pub title: String,
     pub version: String,
@@ -24,7 +43,7 @@ pub struct Tag {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PathItem {
     #[serde(rename = "get", skip_serializing_if = "Option::is_none")]
     pub get: Option<Operation>,
@@ -42,6 +61,8 @@ pub struct PathItem {
     pub patch: Option<Operation>,
     #[serde(rename = "trace", skip_serializing_if = "Option::is_none")]
     pub trace: Option<Operation>,
+    #[serde(rename = "parameters", skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<Vec<Parameter>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -52,8 +73,12 @@ pub struct Operation {
     #[serde(rename = "operationId")]
     pub operation_id: Option<String>,
     pub parameters: Option<Vec<Parameter>>,
+    #[serde(rename = "requestBody", skip_serializing_if = "Option::is_none")]
+    pub request_body: Option<RequestBody>,
     pub responses: HashMap<String, Response>,
     pub deprecated: Option<bool>,
+    #[serde(rename = "security", skip_serializing_if = "Option::is_none")]
+    pub security: Option<Vec<HashMap<String, Vec<String>>>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -64,6 +89,8 @@ pub struct Parameter {
     pub parameter_in: String,
     pub required: Option<bool>,
     pub schema: Option<Schema>,
+    #[serde(flatten)]
+    pub extensions: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -72,22 +99,158 @@ pub struct Schema {
     pub schema_type: Option<String>,
     #[serde(rename = "$ref", skip_serializing_if = "Option::is_none")]
     pub reference: Option<String>,
+    #[serde(flatten)]
+    pub extensions: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Response {
     pub description: Option<String>,
     pub schema: Option<Schema>,
+    #[serde(rename = "content", skip_serializing_if = "Option::is_none")]
+    pub content: Option<HashMap<String, MediaType>>,
+    #[serde(flatten)]
+    pub extensions: HashMap<String, serde_json::Value>,
 }
 
-/// Intermediate representation for documentation generation
-#[derive(Debug)]
-pub struct ApiDocumentation {
-    pub title: String,
-    pub version: String,
+// Server definition for OpenAPI 3.0+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Server {
+    pub url: String,
     pub description: Option<String>,
-    pub services: Vec<Service>,
-    pub endpoints: Vec<Endpoint>,
+    pub variables: Option<HashMap<String, ServerVariable>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ServerVariable {
+    #[serde(rename = "enum")]
+    pub enum_values: Option<Vec<String>>,
+    pub default: String,
+    pub description: Option<String>,
+}
+
+// Components definition for OpenAPI 3.0+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Components {
+    pub schemas: Option<HashMap<String, Schema>>,
+    pub responses: Option<HashMap<String, Response>>,
+    pub parameters: Option<HashMap<String, Parameter>>,
+    pub examples: Option<HashMap<String, Example>>,
+    #[serde(rename = "requestBodies")]
+    pub request_bodies: Option<HashMap<String, RequestBody>>,
+    pub headers: Option<HashMap<String, Header>>,
+    #[serde(rename = "securitySchemes")]
+    pub security_schemes: Option<HashMap<String, SecurityScheme>>,
+    pub links: Option<HashMap<String, Link>>,
+    pub callbacks: Option<HashMap<String, Callback>>,
+}
+
+// Example struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Example {
+    pub summary: Option<String>,
+    pub description: Option<String>,
+    pub value: Option<serde_json::Value>,
+    #[serde(rename = "externalValue")]
+    pub external_value: Option<String>,
+}
+
+// RequestBody struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct RequestBody {
+    pub description: Option<String>,
+    pub content: HashMap<String, MediaType>,
+    pub required: Option<bool>,
+}
+
+// MediaType struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct MediaType {
+    pub schema: Option<Schema>,
+    pub example: Option<serde_json::Value>,
+    pub examples: Option<HashMap<String, Example>>,
+    pub encoding: Option<HashMap<String, Encoding>>,
+}
+
+// Encoding struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Encoding {
+    #[serde(rename = "contentType")]
+    pub content_type: Option<String>,
+    pub headers: Option<HashMap<String, Header>>,
+    pub style: Option<String>,
+    pub explode: Option<bool>,
+    #[serde(rename = "allowReserved")]
+    pub allow_reserved: Option<bool>,
+}
+
+// Header struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Header {
+    pub description: Option<String>,
+    pub schema: Option<Schema>,
+}
+
+// SecurityScheme struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SecurityScheme {
+    #[serde(rename = "type")]
+    pub security_type: String,
+    pub description: Option<String>,
+    pub name: Option<String>,
+    #[serde(rename = "in")]
+    pub location: Option<String>,
+    pub scheme: Option<String>,
+    #[serde(rename = "bearerFormat")]
+    pub bearer_format: Option<String>,
+    pub flows: Option<OAuthFlows>,
+    #[serde(rename = "openIdConnectUrl")]
+    pub open_id_connect_url: Option<String>,
+}
+
+// OAuthFlows struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct OAuthFlows {
+    pub implicit: Option<OAuthFlow>,
+    pub password: Option<OAuthFlow>,
+    #[serde(rename = "clientCredentials")]
+    pub client_credentials: Option<OAuthFlow>,
+    #[serde(rename = "authorizationCode")]
+    pub authorization_code: Option<OAuthFlow>,
+}
+
+// OAuthFlow struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct OAuthFlow {
+    #[serde(rename = "authorizationUrl")]
+    pub authorization_url: Option<String>,
+    #[serde(rename = "tokenUrl")]
+    pub token_url: Option<String>,
+    #[serde(rename = "refreshUrl")]
+    pub refresh_url: Option<String>,
+    pub scopes: HashMap<String, String>,
+}
+
+// Link struct
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Link {
+    #[serde(rename = "operationRef")]
+    pub operation_ref: Option<String>,
+    #[serde(rename = "operationId")]
+    pub operation_id: Option<String>,
+    pub parameters: Option<HashMap<String, serde_json::Value>>,
+    #[serde(rename = "requestBody")]
+    pub request_body: Option<serde_json::Value>,
+    pub description: Option<String>,
+    pub server: Option<Server>,
+}
+
+// Callback struct - simplistic version
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Callback {
+    // A more complete version would define this properly
+    #[serde(flatten)]
+    pub expression: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -157,4 +320,16 @@ pub enum SortMethod {
     Alphabetical,
     PathLength,
     None,
+}
+
+/// Intermediate representation for documentation generation
+#[derive(Debug)]
+pub struct ApiDocumentation {
+    pub title: String,
+    pub version: String,
+    pub description: Option<String>,
+    pub services: Vec<Service>,
+    pub endpoints: Vec<Endpoint>,
+    pub servers: Vec<String>,
+    pub security_schemes: HashMap<String, String>,
 }

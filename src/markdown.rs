@@ -1,3 +1,31 @@
+use std::collections::{HashMap, HashSet};
+use std::io::Write;
+
+use anyhow::Result;
+
+use crate::models::{ApiDocumentation, DetailLevel, DocConfig, Endpoint, GroupBy};
+use crate::utils::{clean_for_id, extract_content_type};
+
+pub fn generate_markdown<W: Write>(
+    writer: &mut W,
+    doc: &ApiDocumentation,
+    config: &DocConfig,
+) -> Result<()> {
+    // For summary level, just generate the TOC
+    if config.detail_level == DetailLevel::Summary {
+        generate_summary(writer, doc, config)
+    } else {
+        // For other detail levels, use the existing grouping logic
+        match config.group_by {
+            GroupBy::Service => generate_by_service(writer, doc, config),
+            GroupBy::Method => generate_by_method(writer, doc, config),
+            GroupBy::Path => generate_by_path(writer, doc, config),
+            GroupBy::Tag => generate_by_tag(writer, doc, config),
+            GroupBy::Flat => generate_flat(writer, doc, config),
+        }
+    }
+}
+
 // Function to generate just a summary of services and endpoints
 fn generate_summary<W: Write>(
     writer: &mut W,
@@ -10,6 +38,24 @@ fn generate_summary<W: Write>(
         writeln!(writer, "\n{}\n", description)?;
     }
     writeln!(writer, "API Version: {}\n", doc.version)?;
+
+    // Add server URLs if available
+    if !doc.servers.is_empty() && config.include_auth {
+        writeln!(writer, "## Server URLs")?;
+        for server in &doc.servers {
+            writeln!(writer, "* {}", server)?;
+        }
+        writeln!(writer)?;
+    }
+
+    // Add security schemes if available
+    if !doc.security_schemes.is_empty() && config.include_auth {
+        writeln!(writer, "## Authentication")?;
+        for (name, desc) in &doc.security_schemes {
+            writeln!(writer, "* **{}**: {}", name, desc)?;
+        }
+        writeln!(writer)?;
+    }
 
     // Filter services if needed
     let services = if let Some(filter) = &config.service_filter {
@@ -97,32 +143,6 @@ fn generate_summary<W: Write>(
 
     Ok(())
 }
-use std::collections::{HashMap, HashSet};
-use std::io::Write;
-
-use anyhow::Result;
-
-use crate::models::{ApiDocumentation, DetailLevel, DocConfig, Endpoint, GroupBy};
-
-pub fn generate_markdown<W: Write>(
-    writer: &mut W,
-    doc: &ApiDocumentation,
-    config: &DocConfig,
-) -> Result<()> {
-    // For summary level, just generate the TOC
-    if config.detail_level == DetailLevel::Summary {
-        generate_summary(writer, doc, config)
-    } else {
-        // For other detail levels, use the existing grouping logic
-        match config.group_by {
-            GroupBy::Service => generate_by_service(writer, doc, config),
-            GroupBy::Method => generate_by_method(writer, doc, config),
-            GroupBy::Path => generate_by_path(writer, doc, config),
-            GroupBy::Tag => generate_by_tag(writer, doc, config),
-            GroupBy::Flat => generate_flat(writer, doc, config),
-        }
-    }
-}
 
 fn generate_by_service<W: Write>(
     writer: &mut W,
@@ -135,6 +155,24 @@ fn generate_by_service<W: Write>(
         writeln!(writer, "\n{}\n", description)?;
     }
     writeln!(writer, "API Version: {}\n", doc.version)?;
+
+    // Add server URLs if available
+    if !doc.servers.is_empty() && config.include_auth {
+        writeln!(writer, "## Server URLs")?;
+        for server in &doc.servers {
+            writeln!(writer, "* {}", server)?;
+        }
+        writeln!(writer)?;
+    }
+
+    // Add security schemes if available
+    if !doc.security_schemes.is_empty() && config.include_auth {
+        writeln!(writer, "## Authentication")?;
+        for (name, desc) in &doc.security_schemes {
+            writeln!(writer, "* **{}**: {}", name, desc)?;
+        }
+        writeln!(writer)?;
+    }
 
     // Filter services if needed
     let services = if let Some(filter) = &config.service_filter {
@@ -181,7 +219,7 @@ fn generate_by_service<W: Write>(
     if config.include_toc {
         writeln!(writer, "## Services\n")?;
         for service in &services {
-            let anchor = to_anchor(&service.name);
+            let anchor = clean_for_id(&service.name);
             writeln!(writer, "- [{}](#{anchor})", service.name)?;
 
             // Add operation links under each service
@@ -205,7 +243,7 @@ fn generate_by_service<W: Write>(
                 for endpoint in sorted_ops {
                     // Extract a shorter title for the TOC entry
                     let op_title = get_short_title(endpoint);
-                    let op_anchor = to_anchor(&op_title);
+                    let op_anchor = clean_for_id(&op_title);
                     writeln!(writer, "  * [{}](#{op_anchor})", op_title)?;
                 }
             }
@@ -216,7 +254,8 @@ fn generate_by_service<W: Write>(
     // Write each service section
     for service in &services {
         // Create anchor but use it directly in the writeln! call
-        writeln!(writer, "## {}", service.name)?;
+        let anchor = clean_for_id(&service.name);
+        writeln!(writer, "## {} {{#{}}}", service.name, anchor)?;
 
         if let Some(description) = &service.description {
             writeln!(writer, "\n{}", description)?;
@@ -258,6 +297,24 @@ fn generate_by_method<W: Write>(
         writeln!(writer, "\n{}\n", description)?;
     }
     writeln!(writer, "API Version: {}\n", doc.version)?;
+
+    // Add server URLs if available
+    if !doc.servers.is_empty() && config.include_auth {
+        writeln!(writer, "## Server URLs")?;
+        for server in &doc.servers {
+            writeln!(writer, "* {}", server)?;
+        }
+        writeln!(writer)?;
+    }
+
+    // Add security schemes if available
+    if !doc.security_schemes.is_empty() && config.include_auth {
+        writeln!(writer, "## Authentication")?;
+        for (name, desc) in &doc.security_schemes {
+            writeln!(writer, "* **{}**: {}", name, desc)?;
+        }
+        writeln!(writer)?;
+    }
 
     // Group endpoints by method
     let mut method_endpoints: HashMap<&str, Vec<&Endpoint>> = HashMap::new();
@@ -302,7 +359,7 @@ fn generate_by_method<W: Write>(
         ] {
             if let Some(endpoints) = method_endpoints.get(method) {
                 if !endpoints.is_empty() {
-                    let anchor = to_anchor(method);
+                    let anchor = clean_for_id(method);
                     writeln!(writer, "- [{}](#{anchor})", method)?;
                 }
             }
@@ -316,8 +373,8 @@ fn generate_by_method<W: Write>(
     ] {
         if let Some(endpoints) = method_endpoints.get(method) {
             if !endpoints.is_empty() {
-                let anchor = to_anchor(method);
-                writeln!(writer, "## {} {{{}}}", method, anchor)?;
+                let anchor = clean_for_id(method);
+                writeln!(writer, "## {} {{#{}}}", method, anchor)?;
 
                 // Sort endpoints as configured
                 let mut sorted_endpoints = endpoints.clone();
@@ -343,8 +400,8 @@ fn generate_by_method<W: Write>(
 
 fn generate_by_path<W: Write>(
     writer: &mut W,
-    _doc: &ApiDocumentation,
-    _config: &DocConfig,
+    doc: &ApiDocumentation,
+    config: &DocConfig,
 ) -> Result<()> {
     // Implementation for path-based grouping
     // This is a placeholder - you would implement similar to the other grouping methods
@@ -354,8 +411,8 @@ fn generate_by_path<W: Write>(
 
 fn generate_by_tag<W: Write>(
     writer: &mut W,
-    _doc: &ApiDocumentation,
-    _config: &DocConfig,
+    doc: &ApiDocumentation,
+    config: &DocConfig,
 ) -> Result<()> {
     // Implementation for tag-based grouping
     // This is a placeholder - you would implement similar to the other grouping methods
@@ -365,8 +422,8 @@ fn generate_by_tag<W: Write>(
 
 fn generate_flat<W: Write>(
     writer: &mut W,
-    _doc: &ApiDocumentation,
-    _config: &DocConfig,
+    doc: &ApiDocumentation,
+    config: &DocConfig,
 ) -> Result<()> {
     // Implementation for flat listing
     // This is a placeholder - you would implement similar to the other grouping methods
@@ -383,7 +440,8 @@ fn write_endpoint<W: Write>(
     let title = get_short_title(endpoint);
 
     if include_heading {
-        writeln!(writer, "### {}", title)?;
+        let anchor = clean_for_id(&title);
+        writeln!(writer, "### {} {{#{}}}", title, anchor)?;
     } else {
         writeln!(writer, "**{}**", title)?;
     }
@@ -450,47 +508,72 @@ fn write_endpoint<W: Write>(
 
         // Write responses based on detail level
         writeln!(writer, "\n#### Responses")?;
-        writeln!(writer, "| Code | Description |")?;
-        writeln!(writer, "|------|-------------|")?;
+        writeln!(writer, "| Code | Type | Description |")?;
+        writeln!(writer, "|------|------|-------------|")?;
 
         for (code, response) in &endpoint.responses {
             let desc = response.description.as_deref().unwrap_or("-");
-            writeln!(writer, "| {} | {} |", code, desc)?;
+            let content_type = extract_content_type(response).unwrap_or_else(|| "".to_string());
+            writeln!(writer, "| {} | {} | {} |", code, content_type, desc)?;
         }
 
         // Add schemas if configured
         if config.include_schemas && config.detail_level == DetailLevel::Full {
-            // This would be implemented in a full version
-            writeln!(writer, "\n<!-- Schemas would be included here -->")?;
+            writeln!(writer, "\n#### Request Schema")?;
+
+            // Find a body parameter with schema
+            let body_param = endpoint
+                .parameters
+                .iter()
+                .find(|p| p.parameter_in == "body" && p.schema.is_some());
+
+            if let Some(param) = body_param {
+                if let Some(schema) = &param.schema {
+                    if let Some(schema_type) = &schema.schema_type {
+                        writeln!(writer, "```json\n// Schema type: {}\n```", schema_type)?;
+                    } else if let Some(ref_val) = &schema.reference {
+                        writeln!(writer, "```json\n// Reference: {}\n```", ref_val)?;
+                    }
+                }
+            } else {
+                writeln!(writer, "*No request schema available*")?;
+            }
+
+            writeln!(writer, "\n#### Response Schema")?;
+            if let Some((_, response)) = endpoint
+                .responses
+                .iter()
+                .find(|(code, _)| code.starts_with('2'))
+            {
+                if let Some(schema) = &response.schema {
+                    if let Some(schema_type) = &schema.schema_type {
+                        writeln!(writer, "```json\n// Schema type: {}\n```", schema_type)?;
+                    } else if let Some(ref_val) = &schema.reference {
+                        writeln!(writer, "```json\n// Reference: {}\n```", ref_val)?;
+                    }
+                } else if let Some(content) = &response.content {
+                    if let Some((content_type, media_type)) = content.iter().next() {
+                        if let Some(schema) = &media_type.schema {
+                            writeln!(writer, "```json\n// Content type: {}\n```", content_type)?;
+                        }
+                    }
+                } else {
+                    writeln!(writer, "*No response schema available*")?;
+                }
+            } else {
+                writeln!(writer, "*No success response schema available*")?;
+            }
         }
 
         // Add examples if configured
         if config.include_examples && config.detail_level == DetailLevel::Full {
-            // This would be implemented in a full version
-            writeln!(writer, "\n<!-- Examples would be included here -->")?;
+            writeln!(writer, "\n#### Examples")?;
+            writeln!(writer, "*Examples would be included here if available*")?;
         }
     }
 
     writeln!(writer)?; // End with a blank line
     Ok(())
-}
-
-// Remove this function as we've merged it into write_endpoint
-// fn write_endpoint_details<W: Write>(
-//     writer: &mut W,
-//     endpoint: &Endpoint,
-//     config: &DocConfig,
-// ) -> Result<()> {
-//     // ...
-// }
-
-// Helper function to convert a string to a Markdown anchor
-fn to_anchor(text: &str) -> String {
-    text.to_lowercase()
-        .replace(' ', "-")
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-')
-        .collect()
 }
 
 // Helper function to get a shorter title for an endpoint
