@@ -2,10 +2,10 @@ mod config;
 mod markdown;
 mod models;
 mod parser;
+mod utils;
 
 use std::fs::File;
 use std::io::{stdout, BufWriter};
-
 use std::process;
 
 use anyhow::{Context, Result};
