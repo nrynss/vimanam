@@ -23,10 +23,14 @@
 output.md
 *.md
 !README.md
+!CLAUDE.md
 examples/*.md
 tests/output/
 openapi*.json
 swagger*.json
+
+# Test fixtures are tracked despite the patterns above
+!tests/fixtures/**
 
 # Temporary files
 tmp/

@@ -16,6 +16,8 @@ use crate::config::{build_config, Cli};
 use crate::markdown::generate_markdown;
 use crate::parser::parse_openapi;
 
+/// Parses CLI arguments, parses the spec, and writes markdown to the
+/// requested output (file or stdout).
 fn run() -> Result<()> {
     // Initialize logger
     env_logger::init();

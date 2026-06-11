@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::models::{OpenApiSpec, Parameter, Response, Schema};
+use crate::models::{OpenApiSpec, Parameter, Response};
 
 /// Resolves a JSON reference within the OpenAPI specification
 pub fn resolve_ref(spec: &OpenApiSpec, reference: &str) -> Option<serde_json::Value> {
@@ -43,16 +43,6 @@ pub fn resolve_ref(spec: &OpenApiSpec, reference: &str) -> Option<serde_json::Va
     }
 
     Some(current.clone())
-}
-
-/// Resolves a schema reference to a concrete schema
-pub fn resolve_schema_ref(spec: &OpenApiSpec, schema: &Schema) -> Option<Schema> {
-    if let Some(reference) = &schema.reference {
-        if let Some(resolved) = resolve_ref(spec, reference) {
-            return serde_json::from_value(resolved).ok();
-        }
-    }
-    Some(schema.clone())
 }
 
 /// Resolves a parameter reference to a concrete parameter

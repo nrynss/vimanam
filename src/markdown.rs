@@ -6,6 +6,7 @@ use anyhow::Result;
 use crate::models::{ApiDocumentation, DetailLevel, DocConfig, Endpoint, GroupBy};
 use crate::utils::{clean_for_id, extract_content_type};
 
+/// Renders the documentation to `writer`, dispatching on detail level and grouping mode.
 pub fn generate_markdown<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -19,14 +20,12 @@ pub fn generate_markdown<W: Write>(
         match config.group_by {
             GroupBy::Service => generate_by_service(writer, doc, config),
             GroupBy::Method => generate_by_method(writer, doc, config),
-            GroupBy::Path => generate_by_path(writer, doc, config),
-            GroupBy::Tag => generate_by_tag(writer, doc, config),
             GroupBy::Flat => generate_flat(writer, doc, config),
         }
     }
 }
 
-// Function to generate just a summary of services and endpoints
+/// Generates the `--detail summary` view: a compact list of services and their operations.
 fn generate_summary<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -93,7 +92,7 @@ fn generate_summary<W: Write>(
         for service_name in &endpoint.services {
             service_endpoints
                 .entry(service_name)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(endpoint);
         }
     }
@@ -117,7 +116,7 @@ fn generate_summary<W: Write>(
                     });
                 }
                 crate::models::SortMethod::PathLength => {
-                    sorted_ops.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+                    sorted_ops.sort_by_key(|a| a.path.len());
                 }
                 crate::models::SortMethod::None => {}
             }
@@ -144,6 +143,7 @@ fn generate_summary<W: Write>(
     Ok(())
 }
 
+/// Generates documentation grouped by service (tag), one `##` section per service.
 fn generate_by_service<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -210,7 +210,7 @@ fn generate_by_service<W: Write>(
         for service_name in &endpoint.services {
             service_endpoints
                 .entry(service_name)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(endpoint);
         }
     }
@@ -235,7 +235,7 @@ fn generate_by_service<W: Write>(
                         });
                     }
                     crate::models::SortMethod::PathLength => {
-                        sorted_ops.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+                        sorted_ops.sort_by_key(|a| a.path.len());
                     }
                     crate::models::SortMethod::None => {}
                 }
@@ -270,7 +270,7 @@ fn generate_by_service<W: Write>(
                     sorted_endpoints.sort_by(|a, b| a.path.cmp(&b.path));
                 }
                 crate::models::SortMethod::PathLength => {
-                    sorted_endpoints.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+                    sorted_endpoints.sort_by_key(|a| a.path.len());
                 }
                 crate::models::SortMethod::None => {}
             }
@@ -286,6 +286,7 @@ fn generate_by_service<W: Write>(
     Ok(())
 }
 
+/// Generates documentation grouped by HTTP method, one `##` section per method.
 fn generate_by_method<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -347,7 +348,7 @@ fn generate_by_method<W: Write>(
 
         method_endpoints
             .entry(&endpoint.method)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(endpoint);
     }
 
@@ -383,7 +384,7 @@ fn generate_by_method<W: Write>(
                         sorted_endpoints.sort_by(|a, b| a.path.cmp(&b.path));
                     }
                     crate::models::SortMethod::PathLength => {
-                        sorted_endpoints.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+                        sorted_endpoints.sort_by_key(|a| a.path.len());
                     }
                     crate::models::SortMethod::None => {}
                 }
@@ -398,39 +399,83 @@ fn generate_by_method<W: Write>(
     Ok(())
 }
 
-fn generate_by_path<W: Write>(
-    writer: &mut W,
-    doc: &ApiDocumentation,
-    config: &DocConfig,
-) -> Result<()> {
-    // Implementation for path-based grouping
-    // This is a placeholder - you would implement similar to the other grouping methods
-    writeln!(writer, "# Path-based grouping not fully implemented yet")?;
-    Ok(())
-}
-
-fn generate_by_tag<W: Write>(
-    writer: &mut W,
-    doc: &ApiDocumentation,
-    config: &DocConfig,
-) -> Result<()> {
-    // Implementation for tag-based grouping
-    // This is a placeholder - you would implement similar to the other grouping methods
-    writeln!(writer, "# Tag-based grouping not fully implemented yet")?;
-    Ok(())
-}
-
+/// Generates a flat endpoint list (`--flat`) with no grouping hierarchy.
 fn generate_flat<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
     config: &DocConfig,
 ) -> Result<()> {
-    // Implementation for flat listing
-    // This is a placeholder - you would implement similar to the other grouping methods
-    writeln!(writer, "# Flat listing not fully implemented yet")?;
+    // Write title
+    writeln!(writer, "# {}", doc.title)?;
+    if let Some(description) = &doc.description {
+        writeln!(writer, "\n{}\n", description)?;
+    }
+    writeln!(writer, "API Version: {}\n", doc.version)?;
+
+    // Add server URLs if available
+    if !doc.servers.is_empty() && config.include_auth {
+        writeln!(writer, "## Server URLs")?;
+        for server in &doc.servers {
+            writeln!(writer, "* {}", server)?;
+        }
+        writeln!(writer)?;
+    }
+
+    // Add security schemes if available
+    if !doc.security_schemes.is_empty() && config.include_auth {
+        writeln!(writer, "## Authentication")?;
+        for (name, desc) in &doc.security_schemes {
+            writeln!(writer, "* **{}**: {}", name, desc)?;
+        }
+        writeln!(writer)?;
+    }
+
+    // Collect endpoints, applying the same filters as the grouped views
+    let mut endpoints: Vec<&Endpoint> = doc
+        .endpoints
+        .iter()
+        .filter(|endpoint| {
+            if config.exclude_deprecated && endpoint.deprecated {
+                return false;
+            }
+            if let Some(services) = &config.service_filter {
+                if !endpoint.services.iter().any(|s| services.contains(s)) {
+                    return false;
+                }
+            }
+            if let Some(methods) = &config.method_filter {
+                if !methods.contains(&endpoint.method) {
+                    return false;
+                }
+            }
+            if let Some(path_pattern) = &config.path_filter {
+                if !endpoint.path.contains(path_pattern) {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
+    match config.sort_method {
+        crate::models::SortMethod::Alphabetical => {
+            endpoints.sort_by(|a, b| a.path.cmp(&b.path).then(a.method.cmp(&b.method)));
+        }
+        crate::models::SortMethod::PathLength => {
+            endpoints.sort_by_key(|a| a.path.len());
+        }
+        crate::models::SortMethod::None => {}
+    }
+
+    writeln!(writer, "## Endpoints\n")?;
+    for endpoint in endpoints {
+        write_endpoint(writer, endpoint, config, true)?;
+    }
+
     Ok(())
 }
 
+/// Writes a single endpoint section; the amount of detail depends on `config.detail_level`.
 fn write_endpoint<W: Write>(
     writer: &mut W,
     endpoint: &Endpoint,
@@ -513,7 +558,7 @@ fn write_endpoint<W: Write>(
 
         for (code, response) in &endpoint.responses {
             let desc = response.description.as_deref().unwrap_or("-");
-            let content_type = extract_content_type(response).unwrap_or_else(|| "".to_string());
+            let content_type = extract_content_type(response).unwrap_or_default();
             writeln!(writer, "| {} | {} | {} |", code, content_type, desc)?;
         }
 
@@ -553,7 +598,7 @@ fn write_endpoint<W: Write>(
                     }
                 } else if let Some(content) = &response.content {
                     if let Some((content_type, media_type)) = content.iter().next() {
-                        if let Some(schema) = &media_type.schema {
+                        if media_type.schema.is_some() {
                             writeln!(writer, "```json\n// Content type: {}\n```", content_type)?;
                         }
                     }
@@ -576,7 +621,8 @@ fn write_endpoint<W: Write>(
     Ok(())
 }
 
-// Helper function to get a shorter title for an endpoint
+/// Returns a short endpoint title: operation ID, else a name derived from the
+/// summary, else `METHOD /path`.
 fn get_short_title(endpoint: &Endpoint) -> String {
     if let Some(operation_id) = &endpoint.operation_id {
         // If we have an operation ID, use it

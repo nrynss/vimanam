@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -13,8 +14,8 @@ pub struct OpenApiSpec {
     // Tags are optional
     pub tags: Option<Vec<Tag>>,
 
-    // Paths are mandatory
-    pub paths: HashMap<String, PathItem>,
+    // Paths are mandatory; IndexMap preserves spec order for deterministic output
+    pub paths: IndexMap<String, PathItem>,
 
     // Optional servers field (OpenAPI 3.0+)
     pub servers: Option<Vec<Server>>,
@@ -75,7 +76,7 @@ pub struct Operation {
     pub parameters: Option<Vec<Parameter>>,
     #[serde(rename = "requestBody", skip_serializing_if = "Option::is_none")]
     pub request_body: Option<RequestBody>,
-    pub responses: HashMap<String, Response>,
+    pub responses: IndexMap<String, Response>,
     pub deprecated: Option<bool>,
     #[serde(rename = "security", skip_serializing_if = "Option::is_none")]
     pub security: Option<Vec<HashMap<String, Vec<String>>>>,
@@ -108,7 +109,7 @@ pub struct Response {
     pub description: Option<String>,
     pub schema: Option<Schema>,
     #[serde(rename = "content", skip_serializing_if = "Option::is_none")]
-    pub content: Option<HashMap<String, MediaType>>,
+    pub content: Option<IndexMap<String, MediaType>>,
     #[serde(flatten)]
     pub extensions: HashMap<String, serde_json::Value>,
 }
@@ -159,7 +160,7 @@ pub struct Example {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RequestBody {
     pub description: Option<String>,
-    pub content: HashMap<String, MediaType>,
+    pub content: IndexMap<String, MediaType>,
     pub required: Option<bool>,
 }
 
@@ -268,12 +269,11 @@ pub struct Endpoint {
     pub description: Option<String>,
     pub operation_id: Option<String>,
     pub parameters: Vec<Parameter>,
-    pub responses: HashMap<String, Response>,
+    pub responses: IndexMap<String, Response>,
     pub deprecated: bool,
 }
 
 /// Configuration for documentation generation
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct DocConfig {
     pub group_by: GroupBy,
@@ -287,7 +287,6 @@ pub struct DocConfig {
     pub include_examples: bool,
     pub include_auth: bool,
     pub include_toc: bool,
-    pub output_format: OutputFormat,
     pub sort_method: SortMethod,
 }
 
@@ -295,8 +294,6 @@ pub struct DocConfig {
 pub enum GroupBy {
     Service,
     Method,
-    Path,
-    Tag,
     Flat,
 }
 
@@ -306,13 +303,6 @@ pub enum DetailLevel {
     Basic,
     Standard,
     Full,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum OutputFormat {
-    Markdown,
-    Html,
-    Docusaurus,
 }
 
 #[derive(Debug, Clone, PartialEq)]
