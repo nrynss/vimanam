@@ -2,6 +2,7 @@
 name = "vimanam"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.85"
 authors = ["Narayan SS <nrynss@users.noreply.github.com>"]
 description = "OpenAPI to Markdown documentation generator"
 license = "Apache-2.0"

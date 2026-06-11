@@ -22,7 +22,7 @@ It supports both OpenAPI 2.0 (Swagger) and OpenAPI 3.0 specifications.
 
 ## Prerequisites
 
-- [Rust](https://www.rust-lang.org/tools/install) (1.70.0 or later)
+- [Rust](https://www.rust-lang.org/tools/install) (1.85.0 or later)
 - [Git](https://git-scm.com/downloads)
 
 ## Installation
