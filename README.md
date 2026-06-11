@@ -6,6 +6,8 @@ Vimanam stands for Aeroplane in Malayalam. Like an aeroplane, it can fly high an
 
 It supports both OpenAPI 2.0 (Swagger) and OpenAPI 3.0 specifications.
 
+Besides producing documentation for humans, Vimanam is built for **feeding API specs to LLMs**: a multi-megabyte enterprise spec doesn't fit in a context window, but a filtered, summary-level Markdown rendering of it does. See [Preparing API context for LLMs](#preparing-api-context-for-llms).
+
 ## Features
 
 - Convert OpenAPI JSON files to Markdown documentation
@@ -19,6 +21,7 @@ It supports both OpenAPI 2.0 (Swagger) and OpenAPI 3.0 specifications.
 - Proper content type detection for responses
 - Sorting options for endpoints (alphabetical, path length)
 - Clean anchor generation for better navigation
+- Deterministic, byte-identical output across runs — friendly to diffs, caching, and LLM prompt caching
 
 ## Prerequisites
 
@@ -99,6 +102,28 @@ Options:
       --sort <alpha|path-length|none>      Sorting method [default: alpha]
   -h, --help                               Print help
 ```
+
+## Preparing API context for LLMs
+
+Large API specs are a poor fit for LLM context windows: a 3 MB swagger file is hundreds of thousands of tokens of JSON, most of it boilerplate. Vimanam's detail levels and filters act as a token-budget dial, letting you hand an LLM (or a coding agent) exactly the slice of the API it needs, as compact Markdown.
+
+```bash
+# 20,000-ft view: every service and operation name, usually <1% the size of the spec.
+# Good as always-loaded context so the model knows what the API can do.
+vimanam openapi.json --detail summary -o api-map.md
+
+# Zoom into one service when the task touches it — parameters and responses
+# included, everything else excluded
+vimanam openapi.json --service-filter Findings --detail standard -o findings-api.md
+
+# Slice by path or method instead
+vimanam openapi.json --path-filter /v1/scans --detail standard -o scans-api.md
+vimanam openapi.json --method-filter GET --detail basic -o read-api.md
+```
+
+A workflow that works well with coding agents: generate the `--detail summary` map once and reference it from the project's agent instructions (e.g. `CLAUDE.md`); have the agent regenerate a `--service-filter ... --detail standard` slice on demand when a task involves specific endpoints.
+
+Output is deterministic — the same spec and flags produce byte-identical Markdown — so generated context files diff cleanly in git and don't needlessly invalidate LLM prompt caches.
 
 ## Supported OpenAPI Versions
 
