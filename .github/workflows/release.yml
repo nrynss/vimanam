@@ -21,24 +21,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Extract this version's section from CHANGELOG.md
+          NOTES="$(awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { flag = 1; next }
+            /^## \[/ { flag = 0 }
+            flag
+          ' CHANGELOG.md)"
+          if [ -z "$NOTES" ]; then
+            NOTES="See CHANGELOG.md for details."
+          fi
           gh release create "${{ github.ref_name }}" \
             --title "Vimanam ${{ github.ref_name }}" \
-            --notes "$(cat <<'EOF'
-          # Vimanam ${{ github.ref_name }}
+            --notes "$NOTES
 
-          OpenAPI/Swagger JSON to Markdown documentation generator.
-
-          ## Features:
-          - Convert OpenAPI JSON files to Markdown documentation
-          - Group endpoints by service or HTTP method
-          - Filter by service, path, or method
-          - Multiple detail levels (summary, basic, standard, full)
-          - Sorting options for endpoints
-
-          ## Downloads:
-          Binaries for Linux, macOS (Intel & Apple Silicon), and Windows are attached to this release.
-          EOF
-          )"
+          ---
+          Binaries for Linux, macOS (Intel & Apple Silicon), and Windows are attached. Also available via \`cargo install vimanam\`."
 
   publish-crate:
     name: Publish to crates.io

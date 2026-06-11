@@ -10,6 +10,15 @@ fn vimanam() -> Command {
 }
 
 #[test]
+fn version_flag_reports_crate_version() {
+    vimanam()
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
 fn summary_lists_services_and_operations() {
     vimanam()
         .arg(OAS3)

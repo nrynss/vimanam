@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::models::{DetailLevel, DocConfig, GroupBy, SortMethod};
 
 #[derive(Parser, Debug)]
-#[command(name = "vimanam")]
+#[command(name = "vimanam", version)]
 #[command(about = "OpenAPI to Markdown documentation generator", long_about = None)]
 pub struct Cli {
     /// Path to the OpenAPI JSON file
