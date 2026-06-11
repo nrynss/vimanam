@@ -4,10 +4,12 @@ version = "0.2.1"
 edition = "2021"
 rust-version = "1.85"
 authors = ["Narayan SS <nrynss@users.noreply.github.com>"]
-description = "OpenAPI to Markdown documentation generator"
+description = "OpenAPI/Swagger to Markdown documentation generator with grouping, filtering, and detail levels for docs and LLM context"
 license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/nrynss/vimanam"
+keywords = ["openapi", "swagger", "markdown", "documentation", "cli"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 # Command line argument parsing
