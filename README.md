@@ -23,12 +23,22 @@ Besides producing documentation for humans, Vimanam is built for **feeding API s
 - Clean anchor generation for better navigation
 - Deterministic, byte-identical output across runs — friendly to diffs, caching, and LLM prompt caching
 
-## Prerequisites
-
-- [Rust](https://www.rust-lang.org/tools/install) (1.85.0 or later)
-- [Git](https://git-scm.com/downloads)
-
 ## Installation
+
+### From crates.io (recommended)
+
+```bash
+cargo install vimanam
+```
+
+### Prebuilt binaries
+
+Download the binary for your platform (Linux, macOS Intel/ARM64, Windows) from the
+[latest release](https://github.com/nrynss/vimanam/releases/latest) — no Rust toolchain needed.
+
+### From source
+
+Requires [Rust](https://www.rust-lang.org/tools/install) 1.85.0 or later.
 
 ```bash
 # Clone repository
@@ -38,10 +48,8 @@ cd vimanam
 # Run directly without building (development)
 cargo run -- input.json -o output.md
 
-# Build
+# Build and run
 cargo build --release
-
-# Run the built binary
 ./target/release/vimanam input.json -o output.md
 
 # Or install system-wide
