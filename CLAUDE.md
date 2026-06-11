@@ -12,7 +12,8 @@ Vimanam is a Rust CLI that converts OpenAPI/Swagger JSON specs (both 2.0 and 3.0
 cargo build                          # debug build
 cargo build --release                # release build
 cargo run -- <spec.json> -o out.md   # run during development
-cargo test                           # test deps (assert_cmd, predicates, tempfile) are declared, but no tests exist yet
+cargo test                           # integration tests in tests/cli.rs against tests/fixtures/*.json
+cargo test optional_request_body     # run a single test by name substring
 cargo fmt && cargo clippy            # format / lint
 ```
 
@@ -34,6 +35,6 @@ Unknown spec fields are preserved via `#[serde(flatten)] extensions` maps on mos
 
 ## Gotchas
 
-- `--format html|docusaurus` and `--template` are accepted by the CLI but not implemented — `markdown.rs` always emits Markdown and never reads `output_format` or the template path.
-- The actual `--detail` default is `summary` (`config.rs`), not `basic` as the README claims.
 - `--include-schemas` and `--include-examples` only take effect at `--detail full`.
+- Output determinism is a tested invariant (`output_is_deterministic` in `tests/cli.rs`): `paths`, `responses`, and `content` use `IndexMap` to preserve spec order. Don't swap them back to `HashMap`.
+- The blanket `*.md` ignore in `.gitignore` has explicit exceptions for `README.md`, `CLAUDE.md`, and `tests/fixtures/**` — new tracked markdown or fixtures need an exception too.

@@ -10,7 +10,7 @@ It supports both OpenAPI 2.0 (Swagger) and OpenAPI 3.0 specifications.
 
 - Convert OpenAPI JSON files to Markdown documentation
 - Supports both OpenAPI 2.0 (Swagger) and OpenAPI 3.0 specifications
-- Group endpoints by service, HTTP method, path, or tag
+- Group endpoints by service or HTTP method, or list them flat
 - Filter by service, path, or method
 - Multiple detail levels (summary, basic, standard, full)
 - Reference resolution to follow JSON references (`$ref`) in specifications
@@ -84,20 +84,18 @@ Arguments:
 Options:
   -o, --output <FILE>                      Output file path
       --method                             Group endpoints by HTTP method instead of by service
-      --group-by <service|method|path|tag> Grouping method for endpoints
+      --group-by <service|method>          Grouping method for endpoints
       --flat                               Generate a flat list without hierarchical structure
       --service-filter <SERVICE[,...]>     Include only specific services (comma-separated)
       --path-filter <PATTERN>              Filter endpoints by path pattern
       --method-filter <METHOD[,...]>       Filter by HTTP methods (comma-separated)
       --exclude-deprecated                 Hide deprecated endpoints
       --required-only                      Only show required parameters
-      --detail <summary|basic|standard|full> Control amount of information [default: basic]
+      --detail <summary|basic|standard|full> Control amount of information [default: summary]
       --include-schemas                    Include request/response schemas
       --include-examples                   Include request/response examples
       --include-auth                       Show authentication requirements and server URLs
       --no-toc                             Skip table of contents
-      --format <markdown|html|docusaurus>  Output format
-      --template <FILE>                    Use custom template
       --sort <alpha|path-length|none>      Sorting method [default: alpha]
   -h, --help                               Print help
 ```

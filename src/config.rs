@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
-use crate::models::{DetailLevel, DocConfig, GroupBy, OutputFormat, SortMethod};
+use crate::models::{DetailLevel, DocConfig, GroupBy, SortMethod};
 
 #[derive(Parser, Debug)]
 #[command(name = "vimanam")]
@@ -67,14 +67,6 @@ pub struct Cli {
     #[arg(long)]
     pub no_toc: bool,
 
-    /// Output format
-    #[arg(long, value_enum, default_value = "markdown")]
-    pub format: FormatArg,
-
-    /// Use custom template
-    #[arg(long)]
-    pub template: Option<PathBuf>,
-
     /// Sorting method
     #[arg(long, value_enum, default_value = "alpha")]
     pub sort: SortArg,
@@ -84,8 +76,6 @@ pub struct Cli {
 pub enum GroupByArg {
     Service,
     Method,
-    Path,
-    Tag,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -94,13 +84,6 @@ pub enum DetailLevelArg {
     Basic,
     Standard,
     Full,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-pub enum FormatArg {
-    Markdown,
-    Html,
-    Docusaurus,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -115,8 +98,6 @@ impl From<GroupByArg> for GroupBy {
         match arg {
             GroupByArg::Service => GroupBy::Service,
             GroupByArg::Method => GroupBy::Method,
-            GroupByArg::Path => GroupBy::Path,
-            GroupByArg::Tag => GroupBy::Tag,
         }
     }
 }
@@ -128,16 +109,6 @@ impl From<DetailLevelArg> for DetailLevel {
             DetailLevelArg::Basic => DetailLevel::Basic,
             DetailLevelArg::Standard => DetailLevel::Standard,
             DetailLevelArg::Full => DetailLevel::Full,
-        }
-    }
-}
-
-impl From<FormatArg> for OutputFormat {
-    fn from(arg: FormatArg) -> Self {
-        match arg {
-            FormatArg::Markdown => OutputFormat::Markdown,
-            FormatArg::Html => OutputFormat::Html,
-            FormatArg::Docusaurus => OutputFormat::Docusaurus,
         }
     }
 }
@@ -176,7 +147,6 @@ pub fn build_config(cli: &Cli) -> DocConfig {
         include_examples: cli.include_examples,
         include_auth: cli.include_auth,
         include_toc: !cli.no_toc,
-        output_format: cli.format.into(),
         sort_method: cli.sort.into(),
     }
 }

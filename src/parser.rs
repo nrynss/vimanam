@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use indexmap::{IndexMap, IndexSet};
 use log::{debug, warn};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -83,14 +84,14 @@ pub fn parse_openapi<P: AsRef<Path>>(path: P) -> Result<ApiDocumentation> {
                     }
 
                     // If we got here, there's a structural issue with the spec
-                    return Err(anyhow::anyhow!(
+                    Err(anyhow::anyhow!(
                         "Invalid OpenAPI specification structure: {}",
                         err
-                    ));
+                    ))
                 }
                 Err(_) => {
                     // Not even valid JSON
-                    return Err(anyhow::anyhow!("File is not valid JSON: {}", err));
+                    Err(anyhow::anyhow!("File is not valid JSON: {}", err))
                 }
             }
         }
@@ -137,12 +138,13 @@ fn extract_services(spec: &OpenApiSpec) -> Vec<Service> {
         }
     }
 
-    // If no tags, try to infer services from endpoint tags
+    // If no tags, try to infer services from endpoint tags.
+    // IndexSet keeps first-appearance order so output is deterministic.
     if services.is_empty() {
-        let mut service_names = HashSet::new();
+        let mut service_names = IndexSet::new();
 
         for (_, path_item) in &spec.paths {
-            for operation in [
+            for op in [
                 &path_item.get,
                 &path_item.post,
                 &path_item.put,
@@ -151,12 +153,13 @@ fn extract_services(spec: &OpenApiSpec) -> Vec<Service> {
                 &path_item.head,
                 &path_item.patch,
                 &path_item.trace,
-            ] {
-                if let Some(op) = operation {
-                    if let Some(tags) = &op.tags {
-                        for tag in tags {
-                            service_names.insert(tag.clone());
-                        }
+            ]
+            .into_iter()
+            .flatten()
+            {
+                if let Some(tags) = &op.tags {
+                    for tag in tags {
+                        service_names.insert(tag.clone());
                     }
                 }
             }
@@ -167,7 +170,7 @@ fn extract_services(spec: &OpenApiSpec) -> Vec<Service> {
             service_names.insert("API".to_string());
         }
 
-        // Convert HashSet to Vec of Services
+        // Convert IndexSet to Vec of Services
         for name in service_names {
             services.push(Service {
                 name,
@@ -250,35 +253,23 @@ fn extract_endpoints(spec: &OpenApiSpec, services: &[Service]) -> Vec<Endpoint> 
                     }
                 }
 
-                // Handle request body as a parameter (for OpenAPI 3.0)
+                // Handle request body as a parameter (for OpenAPI 3.0).
+                // Bodies are optional unless the spec says required: true.
                 if let Some(req_body) = &operation.request_body {
-                    if let Some(req) = req_body.required {
-                        if req && !req_body.content.is_empty() {
-                            // Find a content type to represent
-                            let content_types: Vec<String> =
-                                req_body.content.keys().cloned().collect();
-                            if !content_types.is_empty() {
-                                let first_content_type = &content_types[0];
-
-                                // Create a parameter representation
-                                parameters.push(Parameter {
-                                    name: "requestBody".to_string(),
-                                    description: req_body.description.clone(),
-                                    parameter_in: "body".to_string(),
-                                    required: Some(true),
-                                    schema: req_body
-                                        .content
-                                        .get(first_content_type)
-                                        .and_then(|mt| mt.schema.clone()),
-                                    extensions: HashMap::new(),
-                                });
-                            }
-                        }
+                    if let Some((_, media_type)) = req_body.content.first() {
+                        parameters.push(Parameter {
+                            name: "requestBody".to_string(),
+                            description: req_body.description.clone(),
+                            parameter_in: "body".to_string(),
+                            required: Some(req_body.required.unwrap_or(false)),
+                            schema: media_type.schema.clone(),
+                            extensions: HashMap::new(),
+                        });
                     }
                 }
 
                 // Resolve references in responses
-                let resolved_responses = operation
+                let resolved_responses: IndexMap<String, Response> = operation
                     .responses
                     .iter()
                     .map(|(status_code, response)| {

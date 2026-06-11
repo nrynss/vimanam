@@ -7,39 +7,36 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Vimanam ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          body: |
-            # Vimanam ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "Vimanam ${{ github.ref_name }}" \
+            --notes "$(cat <<'EOF'
+          # Vimanam ${{ github.ref_name }}
 
-            OpenAPI/Swagger JSON to Markdown documentation generator.
+          OpenAPI/Swagger JSON to Markdown documentation generator.
 
-            ## Features:
-            - Convert OpenAPI JSON files to Markdown documentation
-            - Group endpoints by service or HTTP method
-            - Filter by service, path, or method
-            - Multiple detail levels (summary, basic, standard, full)
-            - Sorting options for endpoints
+          ## Features:
+          - Convert OpenAPI JSON files to Markdown documentation
+          - Group endpoints by service or HTTP method
+          - Filter by service, path, or method
+          - Multiple detail levels (summary, basic, standard, full)
+          - Sorting options for endpoints
 
-            ## Downloads:
-            Binaries for Linux, macOS (Intel & Apple Silicon), and Windows are attached to this release.
+          ## Downloads:
+          Binaries for Linux, macOS (Intel & Apple Silicon), and Windows are attached to this release.
+          EOF
+          )"
 
   build-and-upload:
     name: Build and Upload
@@ -73,28 +70,20 @@ jobs:
             asset_name: vimanam-macos-arm64
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
+          targets: ${{ matrix.target }}
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" "${{ matrix.asset_name }}"
+          gh release upload "${{ github.ref_name }}" "${{ matrix.asset_name }}" --clobber
