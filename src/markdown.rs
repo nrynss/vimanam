@@ -115,7 +115,7 @@ fn generate_summary<W: Write>(
                     });
                 }
                 crate::models::SortMethod::PathLength => {
-                    sorted_ops.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+                    sorted_ops.sort_by_key(|a| a.path.len());
                 }
                 crate::models::SortMethod::None => {}
             }
@@ -233,7 +233,7 @@ fn generate_by_service<W: Write>(
                         });
                     }
                     crate::models::SortMethod::PathLength => {
-                        sorted_ops.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+                        sorted_ops.sort_by_key(|a| a.path.len());
                     }
                     crate::models::SortMethod::None => {}
                 }
@@ -268,7 +268,7 @@ fn generate_by_service<W: Write>(
                     sorted_endpoints.sort_by(|a, b| a.path.cmp(&b.path));
                 }
                 crate::models::SortMethod::PathLength => {
-                    sorted_endpoints.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+                    sorted_endpoints.sort_by_key(|a| a.path.len());
                 }
                 crate::models::SortMethod::None => {}
             }
@@ -381,7 +381,7 @@ fn generate_by_method<W: Write>(
                         sorted_endpoints.sort_by(|a, b| a.path.cmp(&b.path));
                     }
                     crate::models::SortMethod::PathLength => {
-                        sorted_endpoints.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+                        sorted_endpoints.sort_by_key(|a| a.path.len());
                     }
                     crate::models::SortMethod::None => {}
                 }
@@ -458,7 +458,7 @@ fn generate_flat<W: Write>(
             endpoints.sort_by(|a, b| a.path.cmp(&b.path).then(a.method.cmp(&b.method)));
         }
         crate::models::SortMethod::PathLength => {
-            endpoints.sort_by(|a, b| a.path.len().cmp(&b.path.len()));
+            endpoints.sort_by_key(|a| a.path.len());
         }
         crate::models::SortMethod::None => {}
     }
