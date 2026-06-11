@@ -11,6 +11,9 @@ use crate::utils::{
     extract_security_schemes, extract_servers, resolve_parameter_ref, resolve_response_ref,
 };
 
+/// Parses an OpenAPI 2.0/3.0 JSON file into the spec-version-agnostic
+/// [`ApiDocumentation`] intermediate representation. On deserialization
+/// failure, re-parses as generic JSON to produce a targeted error message.
 pub fn parse_openapi<P: AsRef<Path>>(path: P) -> Result<ApiDocumentation> {
     let path_ref = path.as_ref();
     let file = File::open(path_ref).context("Failed to open OpenAPI file")?;
@@ -98,6 +101,7 @@ pub fn parse_openapi<P: AsRef<Path>>(path: P) -> Result<ApiDocumentation> {
     }
 }
 
+/// Logs warnings for missing-but-tolerated spec fields (version, title, paths).
 fn validate_openapi(spec: &OpenApiSpec, path: &Path) -> Result<()> {
     // Log the OpenAPI version
     if let Some(version) = &spec.spec_version {
@@ -125,6 +129,8 @@ fn validate_openapi(spec: &OpenApiSpec, path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Derives "services" from spec-level tags, falling back to per-operation
+/// tags, then to a single default `"API"` service.
 fn extract_services(spec: &OpenApiSpec) -> Vec<Service> {
     // Extract services from tags
     let mut services = Vec::new();
@@ -182,6 +188,9 @@ fn extract_services(spec: &OpenApiSpec) -> Vec<Service> {
     services
 }
 
+/// Flattens every operation under `paths` into an [`Endpoint`], merging
+/// path-level and operation-level parameters, resolving `$ref`s, and
+/// representing an OpenAPI 3.0 `requestBody` as a synthetic `body` parameter.
 fn extract_endpoints(spec: &OpenApiSpec, services: &[Service]) -> Vec<Endpoint> {
     let mut endpoints = Vec::new();
 

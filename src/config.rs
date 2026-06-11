@@ -123,6 +123,8 @@ impl From<SortArg> for SortMethod {
     }
 }
 
+/// Converts parsed CLI arguments into the internal [`DocConfig`].
+/// Grouping precedence: `--flat` > `--method` > `--group-by` > default (service).
 pub fn build_config(cli: &Cli) -> DocConfig {
     // Determine grouping method
     let group_by = if cli.flat {

@@ -6,6 +6,7 @@ use anyhow::Result;
 use crate::models::{ApiDocumentation, DetailLevel, DocConfig, Endpoint, GroupBy};
 use crate::utils::{clean_for_id, extract_content_type};
 
+/// Renders the documentation to `writer`, dispatching on detail level and grouping mode.
 pub fn generate_markdown<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -24,7 +25,7 @@ pub fn generate_markdown<W: Write>(
     }
 }
 
-// Function to generate just a summary of services and endpoints
+/// Generates the `--detail summary` view: a compact list of services and their operations.
 fn generate_summary<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -142,6 +143,7 @@ fn generate_summary<W: Write>(
     Ok(())
 }
 
+/// Generates documentation grouped by service (tag), one `##` section per service.
 fn generate_by_service<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -284,6 +286,7 @@ fn generate_by_service<W: Write>(
     Ok(())
 }
 
+/// Generates documentation grouped by HTTP method, one `##` section per method.
 fn generate_by_method<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -396,6 +399,7 @@ fn generate_by_method<W: Write>(
     Ok(())
 }
 
+/// Generates a flat endpoint list (`--flat`) with no grouping hierarchy.
 fn generate_flat<W: Write>(
     writer: &mut W,
     doc: &ApiDocumentation,
@@ -471,6 +475,7 @@ fn generate_flat<W: Write>(
     Ok(())
 }
 
+/// Writes a single endpoint section; the amount of detail depends on `config.detail_level`.
 fn write_endpoint<W: Write>(
     writer: &mut W,
     endpoint: &Endpoint,
@@ -616,7 +621,8 @@ fn write_endpoint<W: Write>(
     Ok(())
 }
 
-// Helper function to get a shorter title for an endpoint
+/// Returns a short endpoint title: operation ID, else a name derived from the
+/// summary, else `METHOD /path`.
 fn get_short_title(endpoint: &Endpoint) -> String {
     if let Some(operation_id) = &endpoint.operation_id {
         // If we have an operation ID, use it
