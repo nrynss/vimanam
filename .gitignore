@@ -23,6 +23,7 @@
 output.md
 *.md
 !README.md
+!CLAUDE.md
 examples/*.md
 tests/output/
 openapi*.json
