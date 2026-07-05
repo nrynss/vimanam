@@ -1,14 +1,14 @@
 # Vimanam
 
 ```
-       ______
-       \    /
-  _ __ _\__/_ __ _
-  |   |/ oo \|   |
-  =---=(  []  )=---=
-       \__  _/
-         /  \
-        /____\
+             ___
+             \  \___
+              \     \______
+         ======[   oo   __ \_______
+               [ (    )   (________/
+               [ (____)  //
+              /         //
+             /________ //
 ```
 
 [![CI](https://github.com/noemaforge/vimanam/actions/workflows/ci.yml/badge.svg)](https://github.com/noemaforge/vimanam/actions/workflows/ci.yml)
