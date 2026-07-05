@@ -9,6 +9,7 @@
 //! each use site (with per-chain cycle detection).
 
 use std::collections::HashSet;
+use std::fmt;
 use std::io::Write;
 
 use anyhow::Result;
@@ -169,6 +170,7 @@ fn write_rows<W: Write>(writer: &mut W, rows: &[SchemaRow]) -> Result<()> {
     writeln!(writer, "| Field | Type | Required | Description |")?;
     writeln!(writer, "|------|------|---------:|-------------|")?;
     for row in rows {
+        // #74: escape_table_cell now returns impl Display — no intermediate String.
         writeln!(
             writer,
             "| `{}` | {} | {} | {} |",
@@ -203,32 +205,41 @@ fn collect_schema_rows(
         return;
     }
 
-    if let Some(reference) = &schema.reference {
-        let doc = ctx.doc;
+    // #75: flatten the four $ref cases into a single match with if-let guards,
+    // reducing nesting depth by one level throughout.
+    match &schema.reference {
+        // Inline mode + cycle detected.
+        Some(reference) if ctx.inline && ref_stack.contains(reference) => {
+            rows.push(SchemaRow {
+                field: field.to_string(),
+                type_name: format!("ref {}", short_schema_reference(reference)),
+                required: required_to_string(required).to_string(),
+                description: "Cycle detected while expanding schema reference".to_string(),
+            });
+            return;
+        }
 
-        if ctx.inline {
-            // Fully self-contained mode: expand inline, guarding against cycles
-            // on the current expansion chain.
-            if ref_stack.contains(reference) {
-                rows.push(SchemaRow {
-                    field: field.to_string(),
-                    type_name: format!("ref {}", short_schema_reference(reference)),
-                    required: required_to_string(required).to_string(),
-                    description: "Cycle detected while expanding schema reference".to_string(),
-                });
-                return;
-            }
-
+        // Inline mode + resolvable: expand in place, guarding against cycles.
+        Some(reference) if ctx.inline => {
+            let doc = ctx.doc;
             if let Some(resolved) = resolve_schema_reference(reference, doc) {
                 ref_stack.push(reference.clone());
                 collect_schema_rows(resolved, field, required, rows, ref_stack, depth + 1, ctx);
                 ref_stack.pop();
-                return;
+            } else {
+                // Inline + unresolvable.
+                rows.push(SchemaRow {
+                    field: field.to_string(),
+                    type_name: format!("ref {}", short_schema_reference(reference)),
+                    required: required_to_string(required).to_string(),
+                    description: format!("Unresolved schema reference: {reference}"),
+                });
             }
-        } else if let Some(resolved) = resolve_schema_reference(reference, doc) {
-            // Linked mode: emit one row pointing at the shared definition and
-            // register it for rendering. Self- and mutual references resolve to
-            // a link, so there is no cycle to guard against.
+            return;
+        }
+
+        // Linked mode + resolvable: emit one row pointing at the shared definition.
+        Some(reference) if let Some(resolved) = resolve_schema_reference(reference, ctx.doc) => {
             let name = short_schema_reference(reference);
             let description = resolved
                 .description
@@ -244,20 +255,27 @@ fn collect_schema_rows(
             return;
         }
 
-        // Unresolved reference (either mode).
-        rows.push(SchemaRow {
-            field: field.to_string(),
-            type_name: format!("ref {}", short_schema_reference(reference)),
-            required: required_to_string(required).to_string(),
-            description: format!("Unresolved schema reference: {reference}"),
-        });
-        return;
+        // Any reference that couldn't be resolved (either mode).
+        Some(reference) => {
+            rows.push(SchemaRow {
+                field: field.to_string(),
+                type_name: format!("ref {}", short_schema_reference(reference)),
+                required: required_to_string(required).to_string(),
+                description: format!("Unresolved schema reference: {reference}"),
+            });
+            return;
+        }
+
+        // No $ref — fall through to inline field rendering below.
+        None => {}
     }
 
     let description = schema.description.as_deref().unwrap_or("-");
     rows.push(SchemaRow {
         field: field.to_string(),
-        type_name: schema_type_label(schema),
+        // #74: schema_type_label returns impl Display; .to_string() materialises
+        // it once into the SchemaRow, which already owns a String.
+        type_name: schema_type_label(schema).to_string(),
         required: required_to_string(required).to_string(),
         description: description.to_string(),
     });
@@ -346,66 +364,69 @@ fn resolve_schema_reference<'a>(reference: &str, doc: &'a ApiDocumentation) -> O
     None
 }
 
-fn schema_type_label(schema: &Schema) -> String {
-    let mut label = if let Some(schema_type) = &schema.schema_type {
-        if schema_type == "array" {
-            let item_label = schema
-                .items
-                .as_deref()
-                .map(schema_type_hint)
-                .unwrap_or_else(|| "unknown".to_string());
-            format!("array<{}>", item_label)
-        } else if let Some(format) = &schema.format {
-            format!("{}({})", schema_type, format)
+/// Returns a `Display` adapter for the schema type label, writing directly into
+/// the formatter without an intermediate `String` allocation (#74).
+///
+/// Examples: `"string"`, `"integer(int64)"`, `"array<string>"`, `"object"`,
+/// `"enum[3]"`, `"boolean | null"`.
+fn schema_type_label(schema: &Schema) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        // Core type token — each branch writes directly into the formatter.
+        if let Some(schema_type) = &schema.schema_type {
+            if schema_type == "array" {
+                f.write_str("array<")?;
+                if let Some(items) = schema.items.as_deref() {
+                    write!(f, "{}", schema_type_hint(items))?;
+                } else {
+                    f.write_str("unknown")?;
+                }
+                f.write_str(">")?;
+            } else if let Some(format) = &schema.format {
+                write!(f, "{schema_type}({format})")?;
+            } else {
+                f.write_str(schema_type)?;
+            }
+        } else if schema.properties.is_some() {
+            f.write_str("object")?;
+        } else if let Some(items) = schema.items.as_deref() {
+            write!(f, "array<{}>", schema_type_hint(items))?;
+        } else if schema.all_of.as_ref().is_some_and(|v| !v.is_empty()) {
+            f.write_str("allOf")?;
+        } else if schema.one_of.as_ref().is_some_and(|v| !v.is_empty()) {
+            f.write_str("oneOf")?;
+        } else if schema.any_of.as_ref().is_some_and(|v| !v.is_empty()) {
+            f.write_str("anyOf")?;
+        } else if let Some(enum_values) = &schema.enum_values {
+            write!(f, "enum[{}]", enum_values.len())?;
         } else {
-            schema_type.clone()
+            f.write_str("unknown")?;
         }
-    } else if schema.properties.is_some() {
-        "object".to_string()
-    } else if schema.items.is_some() {
-        let item_label = schema
-            .items
-            .as_deref()
-            .map(schema_type_hint)
-            .unwrap_or_else(|| "unknown".to_string());
-        format!("array<{}>", item_label)
-    } else if schema.all_of.as_ref().is_some_and(|v| !v.is_empty()) {
-        "allOf".to_string()
-    } else if schema.one_of.as_ref().is_some_and(|v| !v.is_empty()) {
-        "oneOf".to_string()
-    } else if schema.any_of.as_ref().is_some_and(|v| !v.is_empty()) {
-        "anyOf".to_string()
-    } else if let Some(enum_values) = &schema.enum_values {
-        format!("enum[{}]", enum_values.len())
-    } else {
-        "unknown".to_string()
-    };
 
-    if schema.nullable.unwrap_or(false) {
-        label.push_str(" | null");
-    }
+        // Nullable suffix.
+        if schema.nullable.unwrap_or(false) {
+            f.write_str(" | null")?;
+        }
 
-    label
+        Ok(())
+    })
 }
 
-fn schema_type_hint(schema: &Schema) -> String {
-    if let Some(reference) = &schema.reference {
-        return format!("ref {}", short_schema_reference(reference));
-    }
-
-    if let Some(schema_type) = &schema.schema_type {
-        return schema_type.clone();
-    }
-
-    if schema.properties.is_some() {
-        return "object".to_string();
-    }
-
-    if schema.items.is_some() {
-        return "array".to_string();
-    }
-
-    "unknown".to_string()
+/// Returns a `Display` adapter for a compact one-word type hint used inside
+/// `array<…>` labels, writing directly into the formatter (#74).
+fn schema_type_hint(schema: &Schema) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        if let Some(reference) = &schema.reference {
+            write!(f, "ref {}", short_schema_reference(reference))
+        } else if let Some(schema_type) = &schema.schema_type {
+            f.write_str(schema_type)
+        } else if schema.properties.is_some() {
+            f.write_str("object")
+        } else if schema.items.is_some() {
+            f.write_str("array")
+        } else {
+            f.write_str("unknown")
+        }
+    })
 }
 
 fn format_field(parent: &str, child: &str) -> String {
@@ -432,6 +453,257 @@ fn short_schema_reference(reference: &str) -> String {
         .unwrap_or_else(|| reference.to_string())
 }
 
-fn escape_table_cell(value: &str) -> String {
-    value.replace('|', "\\|").replace('\n', "<br/>")
+/// Returns a `Display` adapter that escapes Markdown table-cell special
+/// characters, writing directly into the formatter without an intermediate
+/// `String` allocation (#74).
+///
+/// Writes contiguous clean slices in bulk and only breaks out for the rare `|`
+/// and `\n` characters, keeping the common (no-special-chars) path fast.
+fn escape_table_cell(value: &str) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        let mut start = 0;
+        for (i, c) in value.char_indices() {
+            let replacement = match c {
+                '|' => "\\|",
+                '\n' => "<br/>",
+                _ => continue,
+            };
+            f.write_str(&value[start..i])?;
+            f.write_str(replacement)?;
+            start = i + c.len_utf8();
+        }
+        f.write_str(&value[start..])
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::Schema;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    /// Convenience: materialise any `Display` as a `String`.
+    fn display(d: impl std::fmt::Display) -> String {
+        d.to_string()
+    }
+
+    fn schema_with_type(t: &str) -> Schema {
+        Schema {
+            schema_type: Some(t.to_string()),
+            ..Schema::default()
+        }
+    }
+
+    fn schema_with_type_and_format(t: &str, fmt: &str) -> Schema {
+        Schema {
+            schema_type: Some(t.to_string()),
+            format: Some(fmt.to_string()),
+            ..Schema::default()
+        }
+    }
+
+    // ── escape_table_cell (#74) ───────────────────────────────────────────
+
+    #[test]
+    fn escape_table_cell_plain_passthrough() {
+        assert_eq!(display(escape_table_cell("hello world")), "hello world");
+    }
+
+    #[test]
+    fn escape_table_cell_escapes_pipe() {
+        assert_eq!(display(escape_table_cell("a|b")), r"a\|b");
+    }
+
+    #[test]
+    fn escape_table_cell_replaces_newline_with_br() {
+        assert_eq!(display(escape_table_cell("a\nb")), "a<br/>b");
+    }
+
+    #[test]
+    fn escape_table_cell_multiple_specials() {
+        assert_eq!(display(escape_table_cell("x|y\nz")), r"x\|y<br/>z");
+    }
+
+    #[test]
+    fn escape_table_cell_empty_string() {
+        assert_eq!(display(escape_table_cell("")), "");
+    }
+
+    // ── schema_type_hint (#74) ────────────────────────────────────────────
+
+    #[test]
+    fn schema_type_hint_with_reference() {
+        let schema = Schema {
+            reference: Some("#/components/schemas/Pet".to_string()),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_hint(&schema)), "ref Pet");
+    }
+
+    #[test]
+    fn schema_type_hint_with_type() {
+        assert_eq!(
+            display(schema_type_hint(&schema_with_type("integer"))),
+            "integer"
+        );
+    }
+
+    #[test]
+    fn schema_type_hint_properties_returns_object() {
+        let schema = Schema {
+            properties: Some(indexmap::IndexMap::new()),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_hint(&schema)), "object");
+    }
+
+    #[test]
+    fn schema_type_hint_items_returns_array() {
+        let schema = Schema {
+            items: Some(Box::new(schema_with_type("string"))),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_hint(&schema)), "array");
+    }
+
+    #[test]
+    fn schema_type_hint_unknown_fallback() {
+        assert_eq!(display(schema_type_hint(&Schema::default())), "unknown");
+    }
+
+    // ── schema_type_label (#74) ───────────────────────────────────────────
+
+    #[test]
+    fn schema_type_label_plain_string() {
+        assert_eq!(
+            display(schema_type_label(&schema_with_type("string"))),
+            "string"
+        );
+    }
+
+    #[test]
+    fn schema_type_label_type_with_format() {
+        assert_eq!(
+            display(schema_type_label(&schema_with_type_and_format(
+                "integer", "int64"
+            ))),
+            "integer(int64)"
+        );
+    }
+
+    #[test]
+    fn schema_type_label_array_with_item_type() {
+        let schema = Schema {
+            schema_type: Some("array".to_string()),
+            items: Some(Box::new(schema_with_type("string"))),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "array<string>");
+    }
+
+    #[test]
+    fn schema_type_label_array_without_items_is_unknown() {
+        let schema = Schema {
+            schema_type: Some("array".to_string()),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "array<unknown>");
+    }
+
+    #[test]
+    fn schema_type_label_object_from_properties() {
+        let schema = Schema {
+            properties: Some(indexmap::IndexMap::new()),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "object");
+    }
+
+    #[test]
+    fn schema_type_label_inferred_array_from_items() {
+        let schema = Schema {
+            items: Some(Box::new(schema_with_type("integer"))),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "array<integer>");
+    }
+
+    #[test]
+    fn schema_type_label_all_of() {
+        let schema = Schema {
+            all_of: Some(vec![schema_with_type("object")]),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "allOf");
+    }
+
+    #[test]
+    fn schema_type_label_one_of() {
+        let schema = Schema {
+            one_of: Some(vec![schema_with_type("string")]),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "oneOf");
+    }
+
+    #[test]
+    fn schema_type_label_any_of() {
+        let schema = Schema {
+            any_of: Some(vec![schema_with_type("string")]),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "anyOf");
+    }
+
+    #[test]
+    fn schema_type_label_enum() {
+        let schema = Schema {
+            enum_values: Some(vec![
+                serde_json::json!("a"),
+                serde_json::json!("b"),
+                serde_json::json!("c"),
+            ]),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "enum[3]");
+    }
+
+    #[test]
+    fn schema_type_label_unknown_fallback() {
+        assert_eq!(display(schema_type_label(&Schema::default())), "unknown");
+    }
+
+    #[test]
+    fn schema_type_label_nullable_appends_suffix() {
+        let schema = Schema {
+            schema_type: Some("string".to_string()),
+            nullable: Some(true),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "string | null");
+    }
+
+    #[test]
+    fn schema_type_label_non_nullable_no_suffix() {
+        let schema = Schema {
+            schema_type: Some("boolean".to_string()),
+            nullable: Some(false),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "boolean");
+    }
+
+    #[test]
+    fn schema_type_label_array_with_ref_item() {
+        let schema = Schema {
+            schema_type: Some("array".to_string()),
+            items: Some(Box::new(Schema {
+                reference: Some("#/components/schemas/Pet".to_string()),
+                ..Schema::default()
+            })),
+            ..Schema::default()
+        };
+        assert_eq!(display(schema_type_label(&schema)), "array<ref Pet>");
+    }
 }
