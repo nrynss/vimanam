@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Run weekly on Sundays at 00:00 UTC to catch newly published advisories against pinned crates
+    - cron: '0 0 * * 0'
 
 permissions:
   contents: read
@@ -11,6 +14,7 @@ permissions:
 jobs:
   test:
     name: Format, lint, test (stable)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -29,6 +33,7 @@ jobs:
 
   msrv:
     name: Build (MSRV 1.96)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -42,8 +47,20 @@ jobs:
 
       - run: cargo build
 
+  audit:
+    name: Dependency security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Audit dependencies
+        uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24 # v1.2.7
+
   pin-check:
     name: Actions pinned to SHA
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -66,3 +83,4 @@ jobs:
             exit 1
           fi
           echo "All workflow actions are SHA-pinned."
+
