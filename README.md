@@ -1,5 +1,16 @@
 # Vimanam
 
+```
+       ______
+       \    /
+  _ __ _\__/_ __ _
+  |   |/ oo \|   |
+  =---=(  []  )=---=
+       \__  _/
+         /  \
+        /____\
+```
+
 [![CI](https://github.com/noemaforge/vimanam/actions/workflows/ci.yml/badge.svg)](https://github.com/noemaforge/vimanam/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/vimanam.svg)](https://crates.io/crates/vimanam)
 [![License: Apache-2.0](https://img.shields.io/crates/l/vimanam.svg)](LICENSE)
