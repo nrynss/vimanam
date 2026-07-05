@@ -164,7 +164,7 @@ pub struct Parameter {
     pub extensions: HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct Schema {
     #[serde(rename = "title", skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,

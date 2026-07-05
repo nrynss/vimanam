@@ -144,22 +144,28 @@ pub(super) fn write_endpoint<W: Write>(
 
 /// Returns a short endpoint title: operation ID, else a name derived from the
 /// summary, else `METHOD /path`.
+///
+/// #75: restructured from a nested `if let` / `else if let` chain into a
+/// `match` with if-let guards to reduce nesting depth while preserving
+/// identical behaviour.
 pub(super) fn get_short_title(endpoint: &Endpoint) -> String {
-    if let Some(operation_id) = &endpoint.operation_id {
-        // If we have an operation ID, use it
-        return operation_id.clone();
-    } else if let Some(summary) = &endpoint.summary {
-        // If there's a summary, try to extract the operation name (first word or camelCase part)
-        if let Some(first_word) = summary.split_whitespace().next()
-            && first_word.chars().any(|c| c.is_uppercase())
-        {
-            // This is likely a camelCase operation name
-            return first_word.to_string();
-        }
-        // If no good first word, just use the whole summary
-        return summary.clone();
-    }
+    match (&endpoint.operation_id, &endpoint.summary) {
+        // Prefer the explicit operation ID.
+        (Some(op_id), _) => op_id.clone(),
 
-    // Fallback to method and path
-    format!("{} {}", endpoint.method, endpoint.path)
+        // Summary with an apparent camelCase / PascalCase first word — use
+        // just that word as the title.
+        (None, Some(summary))
+            if let Some(first_word) = summary.split_whitespace().next()
+                && first_word.chars().any(|c| c.is_uppercase()) =>
+        {
+            first_word.to_string()
+        }
+
+        // Summary present but no good first word — use the whole thing.
+        (None, Some(summary)) => summary.clone(),
+
+        // Fallback: method + path.
+        (None, None) => format!("{} {}", endpoint.method, endpoint.path),
+    }
 }
