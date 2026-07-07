@@ -7,6 +7,9 @@
 # See https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html
 # Cargo.lock
 
+# Jujutsu VCS (jj also writes .jj/.gitignore itself; this covers fresh clones)
+.jj/
+
 # IDE / Editor files
 .idea/
 .vscode/

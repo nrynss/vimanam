@@ -67,18 +67,18 @@ pub fn resolve_parameter_ref(
     }
 }
 
-/// Resolves a response reference to a concrete response
+/// Resolves a response that may be a `$ref` into `components/responses`,
+/// returning the response unchanged when it carries no reference. Returns
+/// `None` when a `$ref` is present but cannot be resolved.
 pub fn resolve_response_ref(
     spec_json: &serde_json::Value,
     response: &Response,
 ) -> Option<Response> {
-    if let Some(extensions) = response.extensions.get("$ref")
-        && let Some(reference) = extensions.as_str()
-        && let Some(resolved) = resolve_ref(spec_json, reference)
-    {
-        return serde_json::from_value(resolved).ok();
+    match &response.reference {
+        None => Some(response.clone()),
+        Some(reference) => resolve_ref(spec_json, reference)
+            .and_then(|resolved| serde_json::from_value(resolved).ok()),
     }
-    Some(response.clone())
 }
 
 /// Resolves a request body that may itself be a `$ref` into
@@ -130,7 +130,16 @@ pub fn extract_servers(spec: &OpenApiSpec) -> Vec<String> {
         let mut base_url = if host_str.starts_with("http") {
             host_str.to_string()
         } else {
-            format!("https://{}", host_str)
+            // Swagger 2.0 lists its transfer protocols in `schemes`; use the
+            // first entry and assume https only when the spec doesn't say.
+            let scheme = spec
+                .extensions
+                .get("schemes")
+                .and_then(|schemes| schemes.as_array())
+                .and_then(|schemes| schemes.first())
+                .and_then(|scheme| scheme.as_str())
+                .unwrap_or("https");
+            format!("{}://{}", scheme, host_str)
         };
 
         // Add basePath if present

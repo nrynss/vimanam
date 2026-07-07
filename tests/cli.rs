@@ -17,6 +17,7 @@ const OAS3_SCHEMA_REFS_YAML: &str = "tests/fixtures/schema_refs_oas3.yaml";
 
 // Parse-layer correctness cluster (issues #48, #50, #51, #54, #56, #60).
 const MULTI_TAG: &str = "tests/fixtures/multi_tag_oas3.json";
+const OAS2_HTTP_SCHEME: &str = "tests/fixtures/http_scheme_oas2.json";
 const REF_PARAMETER: &str = "tests/fixtures/ref_parameter.json";
 const REF_PATH_ITEM: &str = "tests/fixtures/ref_path_item.json";
 const TYPE_ARRAY: &str = "tests/fixtures/type_array_nullable.json";
@@ -210,6 +211,20 @@ fn oas2_spec_is_supported() {
         .stdout(predicate::str::contains(
             "| 200 | application/json | Created |",
         ));
+}
+
+// The OAS2 `schemes` field names the transfer protocol; a plain-HTTP spec must
+// not be rendered with an assumed `https://` prefix. (Specs without `schemes`
+// still default to https — covered by `oas2_spec_is_supported` above.)
+#[test]
+fn oas2_http_scheme_is_respected() {
+    vimanam()
+        .arg(OAS2_HTTP_SCHEME)
+        .arg("--include-auth")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("http://internal.example.com/v1"))
+        .stdout(predicate::str::contains("https://internal.example.com").not());
 }
 
 #[test]
@@ -544,6 +559,57 @@ fn inline_schemas_without_include_schemas_warns() {
         .stderr(predicate::str::contains(
             "--inline-schemas has no effect without --include-schemas.",
         ));
+}
+
+// `--required-only` only filters the parameters table, which basic/summary
+// detail never renders — so it warns there like the other no-effect flags.
+#[test]
+fn required_only_at_basic_detail_warns() {
+    vimanam()
+        .arg(OAS3)
+        .args(["--detail", "basic", "--required-only"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "--required-only has no effect at --detail basic; use --detail standard or full.",
+        ));
+}
+
+// At `--detail standard` the flag takes effect, so no warning is emitted.
+#[test]
+fn required_only_at_standard_detail_emits_no_warning() {
+    vimanam()
+        .arg(OAS3)
+        .args(["--detail", "standard", "--required-only"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("no effect").not());
+}
+
+// `--toc` is the explicit opposite of `--no-toc`; the TOC is on by default, and
+// when both flags are given the later one wins.
+#[test]
+fn toc_flag_is_accepted_and_last_one_wins() {
+    vimanam()
+        .arg(OAS3)
+        .args(["--detail", "basic", "--toc"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("## Services"));
+
+    vimanam()
+        .arg(OAS3)
+        .args(["--detail", "basic", "--no-toc", "--toc"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("## Services"));
+
+    vimanam()
+        .arg(OAS3)
+        .args(["--detail", "basic", "--toc", "--no-toc"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("## Services").not());
 }
 
 // #70 follow-up: an operation carrying multiple tags is rendered under each

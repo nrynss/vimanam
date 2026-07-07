@@ -164,6 +164,9 @@ pub struct Parameter {
     pub extensions: HashMap<String, serde_json::Value>,
 }
 
+// `Default` is for constructing schemas in code (tests build partial schemas
+// via `..Schema::default()`); serde does not consult it during deserialization
+// — missing fields fall back to `Option`/empty-map defaults on their own.
 #[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct Schema {
     #[serde(rename = "title", skip_serializing_if = "Option::is_none")]
@@ -208,6 +211,10 @@ pub struct Schema {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Response {
+    // A response may be given as a `$ref` into `components/responses`;
+    // `resolve_response_ref` resolves it during parsing.
+    #[serde(rename = "$ref", skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
     pub description: Option<String>,
     pub schema: Option<Schema>,
     #[serde(rename = "content", skip_serializing_if = "Option::is_none")]

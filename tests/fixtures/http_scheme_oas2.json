@@ -1,0 +1,21 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Plain HTTP API",
+    "version": "1.0.0"
+  },
+  "host": "internal.example.com",
+  "basePath": "/v1",
+  "schemes": ["http"],
+  "paths": {
+    "/status": {
+      "get": {
+        "summary": "Service status",
+        "operationId": "GetStatus",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    }
+  }
+}
