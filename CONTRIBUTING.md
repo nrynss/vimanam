@@ -6,7 +6,7 @@ process is light. Bug reports, feature ideas, and pull requests are all welcome.
 ## Getting started
 
 Vimanam is a standard Rust (edition 2021) CLI. You need a Rust toolchain; the
-minimum supported version (MSRV) is **1.85**.
+minimum supported version (MSRV) is **1.96**.
 
 ```bash
 git clone https://github.com/noemaforge/vimanam.git
@@ -25,7 +25,7 @@ cargo clippy --all-targets -- -D warnings  # lint (warnings are errors)
 cargo test                                 # integration tests (tests/cli.rs)
 ```
 
-CI also builds against the MSRV (Rust 1.85) on every pull request, so avoid
+CI also builds against the MSRV (Rust 1.96) on every pull request, so avoid
 language or dependency features newer than that unless you intend to raise the
 MSRV deliberately (and call it out in the PR).
 

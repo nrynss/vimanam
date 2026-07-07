@@ -169,12 +169,10 @@ pub(super) fn generate_summary<W: Write>(
             for endpoint in sorted_ops {
                 let op_name = if let Some(operation_id) = &endpoint.operation_id {
                     // Clean up the operation ID by removing the service name prefix if present
-                    if operation_id.starts_with(&format!("{}_", service.name)) {
-                        // Remove the "ServiceName_" prefix
-                        operation_id.replacen(&format!("{}_", service.name), "", 1)
-                    } else {
-                        operation_id.clone()
-                    }
+                    operation_id
+                        .strip_prefix(&format!("{}_", service.name))
+                        .unwrap_or(operation_id)
+                        .to_string()
                 } else {
                     // Fallback if no operation ID
                     format!("{} {}", endpoint.method, endpoint.path)

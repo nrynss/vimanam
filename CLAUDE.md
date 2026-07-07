@@ -17,7 +17,7 @@ cargo test optional_request_body     # run a single test by name substring
 cargo fmt && cargo clippy            # format / lint
 ```
 
-CI (`.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` on every push and pull request, plus an MSRV build on Rust 1.85. The release workflow (`.github/workflows/release.yml`) fires on a `v*` tag: it verifies the tag matches the `Cargo.toml` version, publishes to crates.io, and builds cross-platform binaries packaged as compressed archives with SHA256 checksums.
+CI (`.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` on every push and pull request, plus an MSRV build on Rust 1.96. The release workflow (`.github/workflows/release.yml`) fires on a `v*` tag: it verifies the tag matches the `Cargo.toml` version, publishes to crates.io, and builds cross-platform binaries packaged as compressed archives with SHA256 checksums.
 
 Real-world specs for manual testing may live at the repo root: `swagger.json` (small), `openapi.json` and `openapiv2.swagger.json` (~3 MB each). These and the root `*.md` sample outputs (`summary*.md`, `basicoutput.md`, `fulloutput.md`, etc.) are gitignored local artifacts — they won't exist in a fresh clone, and they're not docs to edit.
 

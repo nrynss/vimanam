@@ -16,7 +16,7 @@ Closes #
 - [ ] `cargo test` passes
 - [ ] Tests added/updated for behavior changes
 - [ ] `CHANGELOG.md` `[Unreleased]` updated (for user-facing changes)
-- [ ] MSRV (Rust 1.85) still builds, or the PR intentionally raises it
+- [ ] MSRV (Rust 1.96) still builds, or the PR intentionally raises it
 
 ## Notes for reviewers
 

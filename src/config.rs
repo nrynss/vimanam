@@ -68,6 +68,11 @@ pub struct Cli {
     #[arg(long)]
     pub include_auth: bool,
 
+    /// Include the table of contents (the default; when both are given,
+    /// the later of --toc/--no-toc wins)
+    #[arg(long, overrides_with = "no_toc")]
+    pub toc: bool,
+
     /// Skip table of contents
     #[arg(long)]
     pub no_toc: bool,
@@ -166,7 +171,9 @@ pub fn build_config(cli: &Cli) -> DocConfig {
         inline_schemas: cli.inline_schemas,
         include_examples: cli.include_examples,
         include_auth: cli.include_auth,
-        include_toc: !cli.no_toc,
+        // `--toc`/`--no-toc` override each other (last one wins), so at most
+        // one of the pair is set; the TOC stays on unless --no-toc survives.
+        include_toc: cli.toc || !cli.no_toc,
         sort_method: cli.sort.into(),
         max_tokens: cli.max_tokens,
     };
@@ -189,6 +196,18 @@ pub fn build_config(cli: &Cli) -> DocConfig {
     // without --include-schemas.
     if config.inline_schemas && !config.include_schemas {
         eprintln!("vimanam: --inline-schemas has no effect without --include-schemas.");
+    }
+    // --required-only only filters the parameters table, which is rendered at
+    // --detail standard and full.
+    if config.required_only
+        && matches!(
+            config.detail_level,
+            DetailLevel::Basic | DetailLevel::Summary
+        )
+    {
+        eprintln!(
+            "vimanam: --required-only has no effect at --detail {detail_name}; use --detail standard or full."
+        );
     }
 
     config
@@ -228,6 +247,7 @@ mod tests {
             inline_schemas: false,
             include_examples: false,
             include_auth: false,
+            toc: false,
             no_toc: false,
             sort: SortArg::Alpha,
             max_tokens: None,

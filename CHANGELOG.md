@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--toc` flag as the explicit opposite of `--no-toc`; when both are given, the
+  later one wins.
+- A "no effect" warning when `--required-only` is combined with `--detail basic`
+  or `--detail summary`, matching the existing `--include-schemas`/`--include-examples`
+  warnings.
+
+### Fixed
+
+- Swagger 2.0 `schemes` is now respected when building the server URL from
+  `host`/`basePath`; previously plain-HTTP specs were rendered with an assumed
+  `https://` prefix.
+
 ## [1.0.0] - 2026-06-30
 
 ### Added
