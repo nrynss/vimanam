@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-07
+
 ### Added
 
 - `--toc` flag as the explicit opposite of `--no-toc`; when both are given, the
@@ -20,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Swagger 2.0 `schemes` is now respected when building the server URL from
   `host`/`basePath`; previously plain-HTTP specs were rendered with an assumed
   `https://` prefix.
+- `Response` model now has a dedicated `$ref` field instead of relying on
+  flattened extensions, for consistency with other ref-bearing types.
+- MSRV documentation updated from 1.85 to 1.96 (actual MSRV as of 1.0.0).
 
 ## [1.0.0] - 2026-06-30
 
