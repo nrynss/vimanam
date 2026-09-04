@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   warnings.
 - `vimanam completions <SHELL>` subcommand printing bash/zsh/fish/PowerShell/Elvish
   completion scripts to stdout (#41).
+- A spec hygiene report, appended after the documentation and separated by a
+  horizontal rule, that counts and lists operations missing a description,
+  `operationId` or documented responses, deprecated and untagged operations,
+  duplicate `operationId`s, and parameters without a description. It covers the
+  same endpoints the documentation does (filters narrow it too). On by default;
+  `--no-report` disables it (#44).
+
+### Changed
+
+- Output now ends with the spec hygiene report unless `--no-report` is given.
+  The report is not counted against `--max-tokens`, so pass `--no-report` when
+  the whole output must fit the budget (for example when feeding it to an LLM).
 
 ### Fixed
 

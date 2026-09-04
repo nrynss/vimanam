@@ -21,6 +21,7 @@ Besides producing documentation for humans, Vimanam is built for **feeding API s
 - Filter by service, path, or method
 - Multiple detail levels (summary, basic, standard, full)
 - Token-budget-aware output (`--max-tokens`): steps the detail level down until the rendering fits, and reports what was trimmed on stderr
+- Spec hygiene report appended to every run (`--no-report` to skip): counts and lists operations missing a description, `operationId` or responses, deprecated and untagged operations, duplicate `operationId`s, and undescribed parameters
 - Schema expansion at `--detail full --include-schemas`: renders request/response schemas as nested field tables. Shared component schemas are expanded once into a trailing "Schema Definitions" section and linked from each use site, keeping output compact when schemas are reused across endpoints; `--inline-schemas` instead expands every `$ref` inline at each use site (larger, fully self-contained, with cycle detection)
 - Example rendering at `--detail full --include-examples`: emits request/response examples as fenced JSON blocks, resolving `$ref`s into `components/examples`
 - Server URL information extraction and documentation
@@ -153,7 +154,51 @@ vimanam input.json --include-auth -o output.md
 
 # Print a shell completion script (see "Shell completions" above)
 vimanam completions zsh
+
+# Drop the spec hygiene report appended after the documentation
+vimanam input.json --no-report -o output.md
 ```
+
+### Spec hygiene report
+
+Every run appends a short report after the documentation, separated by a horizontal rule, that flags common gaps in the spec: operations with no summary or description, no `operationId`, no documented responses, deprecated operations, operations with no tag (attributed to the default service), duplicate `operationId`s, and parameters without a description (a request body counts once per operation, however many media types it offers). It covers the same endpoints the documentation does, so `--service-filter`, `--path-filter`, `--method-filter` and `--exclude-deprecated` narrow the report too. Detail lists appear only for checks that found something.
+
+```markdown
+---
+
+## Spec Hygiene Report
+
+**6 endpoints** across **2 services**
+
+| Check | Count |
+|-------|------:|
+| Missing description | 1 |
+| Missing operationId | 1 |
+| No responses documented | 1 |
+| Deprecated | 2 |
+| Untagged (no service tag) | 1 |
+| Duplicate operationIds | 1 |
+| Parameters without description | 3 |
+
+### Missing description (1)
+- `GET /health`
+
+### Deprecated (2)
+- `GET /ping`
+- `DELETE /users/{id}`
+
+### Duplicate operationIds (1)
+- `getUser`
+  - `DELETE /users/{id}`
+  - `GET /users/{id}`
+
+### Parameters without description (3)
+- `GET /users` — `limit`
+- `POST /users` — `requestBody`
+- `DELETE /users/{id}` — `id`
+```
+
+Pass `--no-report` to omit it. The report is not counted against `--max-tokens` — the budget fits the documentation body only — so combine `--max-tokens` with `--no-report` when the whole output must stay within the budget.
 
 ## Options
 
@@ -185,7 +230,8 @@ Options:
       --include-auth                       Show authentication requirements and server URLs
       --no-toc                             Skip table of contents
       --sort <alpha|path-length|none>      Sorting method [default: alpha]
-      --max-tokens <N>                     Fit output to a token budget, stepping detail down as needed
+      --max-tokens <N>                     Fit output to a token budget, stepping detail down as needed (the hygiene report is appended outside the budget)
+      --no-report                          Skip the spec hygiene report appended after the documentation
   -h, --help                               Print help
 ```
 
@@ -212,7 +258,7 @@ vimanam openapi.json --method-filter GET --detail basic -o read-api.md
 vimanam openapi.json --service-filter Findings --detail full --max-tokens 8000 -o findings-api.md
 ```
 
-`--max-tokens` uses a chars/4 token estimate — close enough to choose a detail level, but treat it as approximate rather than an exact cap.
+`--max-tokens` uses a chars/4 token estimate — close enough to choose a detail level, but treat it as approximate rather than an exact cap. When the output is fed to a model, add `--no-report`: the spec hygiene report is useful to a human tidying the spec but is noise in an LLM prompt, and it is appended outside the token budget.
 
 A workflow that works well with coding agents: generate the `--detail summary` map once and reference it from the project's agent instructions (e.g. `CLAUDE.md`); have the agent regenerate a `--service-filter ... --detail standard` slice on demand when a task involves specific endpoints.
 

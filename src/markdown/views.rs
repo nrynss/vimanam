@@ -54,6 +54,36 @@ fn service_matches_filter(name: &str, filter: &[String]) -> bool {
     filter.iter().any(|entry| entry.eq_ignore_ascii_case(name))
 }
 
+/// Whether a service (tag) name is one the `--service-filter` keeps. Always true
+/// when no service filter is set.
+pub(crate) fn service_is_visible(name: &str, config: &DocConfig) -> bool {
+    match &config.service_filter {
+        Some(filter) => service_matches_filter(name, filter),
+        None => true,
+    }
+}
+
+/// The endpoints the rendered body contains, in the configured sort order:
+/// every endpoint that survives `--exclude-deprecated`, `--method-filter`,
+/// `--path-filter` and `--service-filter`, each listed once. This is the single
+/// definition of "what the document covers" shared by the flat view and the
+/// spec hygiene report, so the two can never disagree about scope.
+pub(crate) fn visible_endpoints<'a>(
+    doc: &'a ApiDocumentation,
+    config: &DocConfig,
+) -> Vec<&'a Endpoint> {
+    let mut endpoints: Vec<&Endpoint> = doc
+        .endpoints
+        .iter()
+        .filter(|endpoint| {
+            passes_filters(endpoint, config) && passes_service_filter(endpoint, config)
+        })
+        .collect();
+
+    sort_endpoints(&mut endpoints, &config.sort_method);
+    endpoints
+}
+
 /// Whether an endpoint survives the deprecated, method, and path filters that
 /// every view applies. The service filter is handled separately
 /// ([`passes_service_filter`]): the service-grouped views narrow their service
@@ -406,15 +436,7 @@ pub(super) fn generate_flat<W: Write>(
     write_preamble(writer, doc, config)?;
 
     // Collect endpoints, applying the same filters as the grouped views
-    let mut endpoints: Vec<&Endpoint> = doc
-        .endpoints
-        .iter()
-        .filter(|endpoint| {
-            passes_filters(endpoint, config) && passes_service_filter(endpoint, config)
-        })
-        .collect();
-
-    sort_endpoints(&mut endpoints, &config.sort_method);
+    let endpoints = visible_endpoints(doc, config);
 
     writeln!(writer, "## Endpoints\n")?;
     let mut schema_ctx = SchemaContext::new(doc, config.inline_schemas);

@@ -92,9 +92,15 @@ pub struct Cli {
     pub sort: SortArg,
 
     /// Fit output to a token budget, stepping detail down (full → summary) as
-    /// needed; what was trimmed is reported on stderr
+    /// needed; what was trimmed is reported on stderr. The budget covers the
+    /// documentation body only: the spec hygiene report is still appended
+    /// outside it (add --no-report to drop it)
     #[arg(long, value_name = "N")]
     pub max_tokens: Option<usize>,
+
+    /// Skip the spec hygiene report appended after the documentation
+    #[arg(long)]
+    pub no_report: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -198,6 +204,7 @@ pub fn build_config(cli: &Cli) -> DocConfig {
         include_toc: cli.toc || !cli.no_toc,
         sort_method: cli.sort.into(),
         max_tokens: cli.max_tokens,
+        include_report: !cli.no_report,
     };
 
     // Warn if --include-schemas or --include-examples is set but detail is not
@@ -274,6 +281,7 @@ mod tests {
             no_toc: false,
             sort: SortArg::Alpha,
             max_tokens: None,
+            no_report: false,
         };
 
         let config = build_config(&cli);

@@ -19,6 +19,10 @@ use anyhow::Result;
 
 use crate::models::{ApiDocumentation, DetailLevel, DocConfig, GroupBy};
 
+// The report module reuses the views' notion of which endpoints and services
+// the rendered body covers, so its scope always matches the document's.
+pub(crate) use views::{service_is_visible, visible_endpoints};
+
 /// Renders the documentation to `writer`.
 ///
 /// With `--max-tokens` set, this fits the output to the budget (see
