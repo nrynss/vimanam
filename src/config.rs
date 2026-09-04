@@ -1,4 +1,5 @@
-use clap::{Parser, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 use std::path::PathBuf;
 
 use crate::models::{DetailLevel, DocConfig, GroupBy, SortMethod};
@@ -6,10 +7,19 @@ use crate::models::{DetailLevel, DocConfig, GroupBy, SortMethod};
 #[derive(Parser, Debug)]
 #[command(name = "vimanam", version)]
 #[command(about = "OpenAPI to Markdown documentation generator", long_about = None)]
+// `input` is required for the conversion pipeline but must not be demanded when
+// a subcommand runs (`vimanam completions zsh`). Subcommands are not arguments,
+// so `required_unless_present` cannot name one; clap's idiom is to keep the
+// positional `required` and let the subcommand negate that requirement.
+// Conversion flags are meaningless alongside a subcommand, so they conflict.
+#[command(subcommand_negates_reqs = true, args_conflicts_with_subcommands = true)]
 pub struct Cli {
     /// Path to the OpenAPI JSON file
-    #[arg(value_name = "FILE")]
-    pub input: PathBuf,
+    #[arg(value_name = "FILE", required = true)]
+    pub input: Option<PathBuf>,
+
+    #[command(subcommand)]
+    pub command: Option<Commands>,
 
     /// Output file path
     #[arg(short, long, value_name = "FILE")]
@@ -85,6 +95,18 @@ pub struct Cli {
     /// needed; what was trimmed is reported on stderr
     #[arg(long, value_name = "N")]
     pub max_tokens: Option<usize>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Generate shell completions and print them to stdout
+    ///
+    /// Example: `vimanam completions zsh > ~/.zfunc/_vimanam`
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -232,7 +254,8 @@ mod tests {
     #[test]
     fn test_detail_level_conversion() {
         let cli = Cli {
-            input: PathBuf::from("spec.json"),
+            input: Some(PathBuf::from("spec.json")),
+            command: None,
             output: None,
             method: false,
             group_by: GroupByArg::Service,

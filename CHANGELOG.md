@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A "no effect" warning when `--required-only` is combined with `--detail basic`
   or `--detail summary`, matching the existing `--include-schemas`/`--include-examples`
   warnings.
+- `vimanam completions <SHELL>` subcommand printing bash/zsh/fish/PowerShell/Elvish
+  completion scripts to stdout (#41).
 
 ### Fixed
 

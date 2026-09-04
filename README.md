@@ -87,6 +87,37 @@ cargo build --release
 cargo install --path .
 ```
 
+### Shell completions
+
+`vimanam completions <SHELL>` prints a completion script for `bash`, `zsh`, `fish`,
+`powershell`, or `elvish`. Install it once and re-run after upgrading Vimanam:
+
+```bash
+# Bash (relies on the bash-completion v2 package, which stock macOS bash 3.2
+# lacks; alternatively add `eval "$(vimanam completions bash)"` to ~/.bashrc)
+mkdir -p ~/.local/share/bash-completion/completions
+vimanam completions bash > ~/.local/share/bash-completion/completions/vimanam
+
+# Zsh (make sure ~/.zfunc is on fpath before compinit runs in ~/.zshrc:
+#   fpath+=~/.zfunc; autoload -Uz compinit; compinit)
+mkdir -p ~/.zfunc
+vimanam completions zsh > ~/.zfunc/_vimanam
+
+# Fish
+mkdir -p ~/.config/fish/completions
+vimanam completions fish > ~/.config/fish/completions/vimanam.fish
+```
+
+```elvish
+# Elvish: add this line to ~/.config/elvish/rc.elv
+eval (vimanam completions elvish | slurp)
+```
+
+```powershell
+# PowerShell: add this line to $PROFILE
+vimanam completions powershell | Out-String | Invoke-Expression
+```
+
 ## Usage
 
 ```bash
@@ -119,12 +150,20 @@ vimanam input.json --detail full --include-schemas --include-examples -o output.
 
 # Include server and authentication information
 vimanam input.json --include-auth -o output.md
+
+# Print a shell completion script (see "Shell completions" above)
+vimanam completions zsh
 ```
 
 ## Options
 
 ```
 Usage: vimanam [OPTIONS] <FILE>
+       vimanam <COMMAND>
+
+Commands:
+  completions  Generate shell completions and print them to stdout
+  help         Print this message or the help of the given subcommand(s)
 
 Arguments:
   <FILE>  Path to the OpenAPI JSON file

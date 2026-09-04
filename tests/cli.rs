@@ -963,3 +963,75 @@ fn unknown_operation_tag_keeps_its_own_service() {
             "## Alpha {#alpha}\n\nNo endpoints found for this service.",
         ));
 }
+
+// Shell completions (#41): `vimanam completions <SHELL>` prints a completion
+// script for every shell clap_complete supports, without needing a spec file.
+#[test]
+fn completions_are_generated_for_each_supported_shell() {
+    // Each shell is paired with a marker unique to its script format, so the
+    // test fails if every shell were to emit the same (e.g. bash) script.
+    let shells = [
+        ("bash", "complete -F _vimanam"),
+        ("zsh", "#compdef vimanam"),
+        ("fish", "complete -c vimanam"),
+        ("powershell", "Register-ArgumentCompleter"),
+        ("elvish", "edit:completion:arg-completer[vimanam]"),
+    ];
+    for (shell, marker) in shells {
+        vimanam()
+            .args(["completions", shell])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(marker))
+            .stderr(predicate::str::is_empty());
+    }
+
+    // The script must actually cover the CLI's options.
+    vimanam()
+        .args(["completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--group-by"));
+}
+
+#[test]
+fn completions_rejects_unsupported_shell() {
+    vimanam()
+        .args(["completions", "nushell"])
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("invalid value 'nushell'"));
+}
+
+#[test]
+fn completions_requires_a_shell() {
+    vimanam()
+        .arg("completions")
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("<SHELL>"));
+}
+
+// The subcommand must not loosen the normal path: with no subcommand the spec
+// file is still required.
+#[test]
+fn no_arguments_still_requires_input_file() {
+    vimanam()
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("<FILE>"));
+}
+
+// Conversion flags and the spec file are meaningless alongside a subcommand,
+// so mixing them is an error rather than being silently ignored.
+#[test]
+fn completions_conflicts_with_conversion_arguments() {
+    vimanam()
+        .args([OAS3, "completions", "bash"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("cannot be used with"));
+}
