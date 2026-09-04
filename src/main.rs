@@ -3,6 +3,7 @@ mod markdown;
 mod models;
 mod parser;
 mod report;
+mod stats;
 mod utils;
 
 use std::fs::File;
@@ -83,6 +84,15 @@ fn run() -> Result<()> {
     // Parse OpenAPI spec
     let api_doc =
         parse_openapi(input).with_context(|| format!("Failed to parse OpenAPI file: {input:?}"))?;
+
+    // `--stats` is a dry run: print the per-service size table to stdout
+    // instead of the documentation. clap rejects `-o` and `--max-tokens`
+    // alongside it, and the hygiene report is never emitted in this mode.
+    if cli.stats {
+        let stats = stats::compute(&api_doc, &config).context("Failed to compute stats")?;
+        stats::write_stats(&mut stdout(), &stats).context("Failed to write stats")?;
+        return Ok(());
+    }
 
     // Generate markdown
     if let Some(output_path) = &cli.output {

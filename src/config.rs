@@ -101,6 +101,15 @@ pub struct Cli {
     /// Skip the spec hygiene report appended after the documentation
     #[arg(long)]
     pub no_report: bool,
+
+    /// Dry run: instead of Markdown, print a plain-text table of visible
+    /// endpoints and estimated tokens (chars/4) per service at the configured
+    /// detail level and filters, to size slices before choosing
+    /// --service-filter/--detail/--max-tokens. Each row is a render of that
+    /// service alone; TOTAL is one render of the whole document, so it is not
+    /// necessarily the sum of the rows. The hygiene report is never included
+    #[arg(long, conflicts_with_all = ["output", "max_tokens"])]
+    pub stats: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -282,6 +291,7 @@ mod tests {
             sort: SortArg::Alpha,
             max_tokens: None,
             no_report: false,
+            stats: false,
         };
 
         let config = build_config(&cli);

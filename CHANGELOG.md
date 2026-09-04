@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplicate `operationId`s, and parameters without a description. It covers the
   same endpoints the documentation does (filters narrow it too). On by default;
   `--no-report` disables it (#44).
+- `--stats` dry run: prints a plain-text table of visible endpoint counts and
+  estimated token sizes (chars/4) per service, plus a whole-document TOTAL,
+  instead of Markdown, honouring `--detail`, grouping and filter flags. Sizes
+  slices before choosing `--service-filter`/`--detail`/`--max-tokens`. Conflicts
+  with `-o` and `--max-tokens`; the hygiene report is never included (#42).
 
 ### Changed
 

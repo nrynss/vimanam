@@ -21,6 +21,7 @@ Besides producing documentation for humans, Vimanam is built for **feeding API s
 - Filter by service, path, or method
 - Multiple detail levels (summary, basic, standard, full)
 - Token-budget-aware output (`--max-tokens`): steps the detail level down until the rendering fits, and reports what was trimmed on stderr
+- Token-budget dry run (`--stats`): a per-service table of endpoint counts and estimated token sizes, for sizing slices before choosing filters
 - Spec hygiene report appended to every run (`--no-report` to skip): counts and lists operations missing a description, `operationId` or responses, deprecated and untagged operations, duplicate `operationId`s, and undescribed parameters
 - Schema expansion at `--detail full --include-schemas`: renders request/response schemas as nested field tables. Shared component schemas are expanded once into a trailing "Schema Definitions" section and linked from each use site, keeping output compact when schemas are reused across endpoints; `--inline-schemas` instead expands every `$ref` inline at each use site (larger, fully self-contained, with cycle detection)
 - Example rendering at `--detail full --include-examples`: emits request/response examples as fenced JSON blocks, resolving `$ref`s into `components/examples`
@@ -157,6 +158,9 @@ vimanam completions zsh
 
 # Drop the spec hygiene report appended after the documentation
 vimanam input.json --no-report -o output.md
+
+# Size each service before choosing filters: endpoint counts and ~tokens per service
+vimanam input.json --stats --detail standard
 ```
 
 ### Spec hygiene report
@@ -232,6 +236,7 @@ Options:
       --sort <alpha|path-length|none>      Sorting method [default: alpha]
       --max-tokens <N>                     Fit output to a token budget, stepping detail down as needed (the hygiene report is appended outside the budget)
       --no-report                          Skip the spec hygiene report appended after the documentation
+      --stats                              Dry run: print a per-service table of visible endpoints and estimated tokens instead of Markdown (TOTAL is one whole-document render, not the sum of the rows)
   -h, --help                               Print help
 ```
 
@@ -259,6 +264,19 @@ vimanam openapi.json --service-filter Findings --detail full --max-tokens 8000 -
 ```
 
 `--max-tokens` uses a chars/4 token estimate — close enough to choose a detail level, but treat it as approximate rather than an exact cap. When the output is fed to a model, add `--no-report`: the spec hygiene report is useful to a human tidying the spec but is noise in an LLM prompt, and it is appended outside the token budget.
+
+Before choosing which slice to generate, `--stats` sizes the candidates without writing any Markdown: it prints one row per service with its visible endpoint count and the estimated token size of rendering that service alone, at whatever `--detail`, grouping and filter flags you pass, plus a TOTAL row for the whole document. A service left with no visible endpoint (for example, one whose only operations are dropped by `--exclude-deprecated`) is omitted from the table.
+
+```bash
+$ vimanam openapi.json --stats --detail standard
+SERVICE    ENDPOINTS   ~TOKENS
+Findings          42      6231
+Scans             18      2890
+Projects          31      4410
+TOTAL             91     13102
+```
+
+Read it as a menu: a service that fits your budget can be pulled with `--service-filter <name>` at that detail level; one that does not can be re-measured at a lower `--detail` or handed to `--max-tokens`. Like `--max-tokens`, `~TOKENS` is a chars/4 estimate of the documentation body (the hygiene report is excluded). Each row is a separate render of that service alone, while `TOTAL` is a single render of the whole filtered document, so the rows do not necessarily add up to it: an operation tagged with several services is counted in each of their rows but once in the total, and the preamble and shared schema definitions are counted once per row.
 
 A workflow that works well with coding agents: generate the `--detail summary` map once and reference it from the project's agent instructions (e.g. `CLAUDE.md`); have the agent regenerate a `--service-filter ... --detail standard` slice on demand when a task involves specific endpoints.
 
