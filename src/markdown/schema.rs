@@ -16,7 +16,7 @@ use anyhow::Result;
 use indexmap::IndexMap;
 
 use crate::models::{ApiDocumentation, Response, Schema};
-use crate::utils::{clean_for_id, decode_json_pointer_token};
+use crate::utils::{clean_for_id, decode_json_pointer_token, resolve_schema_reference};
 
 #[derive(Debug)]
 struct SchemaRow {
@@ -85,7 +85,10 @@ impl<'a> SchemaContext<'a> {
 
 /// Returns the schema of a response, preferring the OpenAPI 2.0 `schema` field
 /// and falling back to the first media type's schema (OpenAPI 3.0 `content`).
-pub(super) fn response_schema(response: &Response) -> Option<&Schema> {
+///
+/// Crate-visible (re-exported from `markdown`) so `diff` compares the same
+/// schema the renderer documents. Only the first media type is considered.
+pub(crate) fn response_schema(response: &Response) -> Option<&Schema> {
     if let Some(schema) = &response.schema {
         return Some(schema);
     }
@@ -350,18 +353,6 @@ fn collect_schema_rows(
             );
         }
     }
-}
-
-fn resolve_schema_reference<'a>(reference: &str, doc: &'a ApiDocumentation) -> Option<&'a Schema> {
-    if let Some(name) = reference.strip_prefix("#/components/schemas/") {
-        return doc.schemas.get(&decode_json_pointer_token(name));
-    }
-
-    if let Some(name) = reference.strip_prefix("#/definitions/") {
-        return doc.schemas.get(&decode_json_pointer_token(name));
-    }
-
-    None
 }
 
 /// Returns a `Display` adapter for the schema type label, writing directly into

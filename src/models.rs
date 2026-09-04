@@ -432,6 +432,32 @@ pub struct DocConfig {
     pub include_report: bool,
 }
 
+impl DocConfig {
+    /// A configuration that covers the whole spec at the richest detail level:
+    /// no filters, `--detail full --include-schemas`, default grouping and
+    /// sorting, no token budget, no hygiene report. `diff --report` uses it so
+    /// the hygiene and token deltas describe the complete documents.
+    pub fn unfiltered() -> Self {
+        Self {
+            group_by: GroupBy::Service,
+            service_filter: None,
+            path_filter: None,
+            method_filter: None,
+            exclude_deprecated: false,
+            required_only: false,
+            detail_level: DetailLevel::Full,
+            include_schemas: true,
+            inline_schemas: false,
+            include_examples: false,
+            include_auth: false,
+            include_toc: true,
+            sort_method: SortMethod::Alphabetical,
+            max_tokens: None,
+            include_report: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum GroupBy {
     Service,

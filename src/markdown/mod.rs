@@ -23,6 +23,8 @@ use crate::models::{ApiDocumentation, DetailLevel, DocConfig, GroupBy};
 // services the rendered body covers, so their scope always matches the
 // document's.
 pub(crate) use views::{service_is_visible, visible_endpoints};
+// `diff` compares the response schema the renderer would document.
+pub(crate) use schema::response_schema;
 
 /// Renders the documentation to `writer`.
 ///
