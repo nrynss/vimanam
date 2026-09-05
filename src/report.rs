@@ -27,8 +27,9 @@ use indexmap::{IndexMap, IndexSet};
 use crate::markdown::{service_is_visible, visible_endpoints};
 use crate::models::{ApiDocumentation, DocConfig, Endpoint};
 
-/// An endpoint named the way the report lists it: `METHOD /path`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// An endpoint named the way the report lists it: `METHOD /path`. Also the
+/// endpoint identity `diff` attributes changes to.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EndpointRef {
     pub method: String,
     pub path: String,

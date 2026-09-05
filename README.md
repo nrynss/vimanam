@@ -22,6 +22,7 @@ Besides producing documentation for humans, Vimanam is built for **feeding API s
 - Multiple detail levels (summary, basic, standard, full)
 - Token-budget-aware output (`--max-tokens`): steps the detail level down until the rendering fits, and reports what was trimmed on stderr
 - Token-budget dry run (`--stats`): a per-service table of endpoint counts and estimated token sizes, for sizing slices before choosing filters
+- Spec diffing (`vimanam diff old.json new.json`): compares two versions of a spec on *resolved* schemas — a change behind a shared `$ref` is reported on every endpoint that uses it — and classifies each change as breaking, non-breaking or needing review, with an exit code for CI (`--fail-on-breaking`)
 - Spec hygiene report appended to every run (`--no-report` to skip): counts and lists operations missing a description, `operationId` or responses, deprecated and untagged operations, duplicate `operationId`s, and undescribed parameters
 - Schema expansion at `--detail full --include-schemas`: renders request/response schemas as nested field tables. Shared component schemas are expanded once into a trailing "Schema Definitions" section and linked from each use site, keeping output compact when schemas are reused across endpoints; `--inline-schemas` instead expands every `$ref` inline at each use site (larger, fully self-contained, with cycle detection)
 - Example rendering at `--detail full --include-examples`: emits request/response examples as fenced JSON blocks, resolving `$ref`s into `components/examples`
@@ -161,6 +162,9 @@ vimanam input.json --no-report -o output.md
 
 # Size each service before choosing filters: endpoint counts and ~tokens per service
 vimanam input.json --stats --detail standard
+
+# Compare two versions of a spec; exit 3 if anything breaking changed
+vimanam diff v1/openapi.json v2/openapi.json --report --fail-on-breaking
 ```
 
 ### Spec hygiene report
@@ -212,6 +216,7 @@ Usage: vimanam [OPTIONS] <FILE>
 
 Commands:
   completions  Generate shell completions and print them to stdout
+  diff         Compare two versions of a spec and report what changed, classified as breaking, non-breaking or needing review
   help         Print this message or the help of the given subcommand(s)
 
 Arguments:
@@ -231,13 +236,31 @@ Options:
       --include-schemas                    Include request/response schemas
       --inline-schemas                     Fully inline every $ref schema instead of linking to a shared "Schema Definitions" section
       --include-examples                   Include request/response examples
-      --include-auth                       Show authentication requirements and server URLs
+      --include-auth                       Show authentication requirements
+      --toc                                Include the table of contents (the default; when both are given, the later of --toc/--no-toc wins)
       --no-toc                             Skip table of contents
       --sort <alpha|path-length|none>      Sorting method [default: alpha]
       --max-tokens <N>                     Fit output to a token budget, stepping detail down as needed (the hygiene report is appended outside the budget)
       --no-report                          Skip the spec hygiene report appended after the documentation
       --stats                              Dry run: print a per-service table of visible endpoints and estimated tokens instead of Markdown (TOTAL is one whole-document render, not the sum of the rows)
   -h, --help                               Print help
+  -V, --version                            Print version
+```
+
+```
+Compare two versions of a spec and report what changed, classified as breaking, non-breaking or needing review
+
+Usage: vimanam diff [OPTIONS] <OLD> <NEW>
+
+Arguments:
+  <OLD>  The older spec (JSON or YAML)
+  <NEW>  The newer spec (JSON or YAML)
+
+Options:
+      --report            Append a Deltas section: spec hygiene counts for both specs and the estimated token size of each at --detail full --include-schemas
+      --fail-on-breaking  Exit with status 3 when any breaking change is found, after writing the full report
+  -o, --output <FILE>     Write the diff to FILE instead of stdout
+  -h, --help              Print help (see more with '--help')
 ```
 
 ## Preparing API context for LLMs
@@ -282,6 +305,61 @@ A workflow that works well with coding agents: generate the `--detail summary` m
 
 Output is deterministic — the same spec and flags produce byte-identical Markdown — so generated context files diff cleanly in git and don't needlessly invalidate LLM prompt caches.
 
+## Comparing spec versions
+
+`vimanam diff <OLD> <NEW>` compares two versions of a spec and prints a Markdown report of what changed, so a spec update can be reviewed (or gated in CI) before clients find out the hard way.
+
+```bash
+vimanam diff v1/openapi.json v2/openapi.json --report --fail-on-breaking
+```
+
+```markdown
+# API Diff: Widgets API 1.0.0 → 1.1.0
+
+**Summary:** 1 endpoint added, 1 removed, 4 changed; 4 breaking, 8 non-breaking, 1 to review
+
+## Breaking changes (4)
+
+| Change | Endpoint | Detail |
+|--------|----------|--------|
+| Parameter newly required | `GET /widgets/{id}` | `fields` (query) |
+| Response removed | `GET /widgets/{id}` | 404 |
+| operationId changed | `DELETE /widgets/{id}` | `Widgets_DeleteWidget` → `Widgets_RemoveWidget` |
+| Endpoint removed | `GET /legacy` | was deprecated |
+
+## Non-breaking changes (8)
+
+| Change | Endpoint | Detail |
+|--------|----------|--------|
+| Response schema changed | `GET /widgets` | 200 `/properties/pricing` added |
+| Response schema changed | `GET /widgets` | 200 `/properties/pricing` added to `required` |
+| ... | | |
+
+## Needs review (1)
+
+| Change | Endpoint | Detail |
+|--------|----------|--------|
+| Request schema changed | `POST /widgets` | `/properties/weight/format` changed `float` → `double` |
+```
+
+**What is compared.** Endpoints are matched by method and path, parameters by name and location, responses by status code. Request and response bodies are compared as *resolved* schemas: every `$ref` is inlined first, so a change to a shared component schema shows up on every endpoint that references it — even when the operation object itself is byte-identical, which is the case a path-level or operation-level diff misses. Field-level differences are reported as JSON pointers into the resolved schema (`/properties/pricing`, `/items/type`). Descriptions, titles, examples and `x-*` extensions are ignored, and the order of `required` and `enum` members is irrelevant.
+
+**Severity.** Every change is classified from the point of view of an existing client:
+
+| Severity | Examples |
+|----------|----------|
+| Breaking | endpoint or response code removed; parameter removed, newly required or moved; `operationId` changed; a `type` changed anywhere; request: property removed, property added to `required`, `enum` member removed, `additionalProperties` set to `false`, `nullable` set to `false` (clients sending `null` now fail); response: schema removed entirely, property removed, property removed from `required`, `enum` member removed, `nullable` set to `true` |
+| Non-breaking | endpoint or response code added; optional parameter added; parameter made optional; `deprecated` toggled; `operationId` added; request: property added, `required` member removed, `enum` member added, `nullable` set to `true`; response: property added, `required` member added, `nullable` set to `false` |
+| Needs review | a response `enum` gaining a member (strictly typed clients reject values they do not know); anything else in a schema — `format`, `minimum`/`maximum`, `pattern`, `items` shape, `allOf`/`oneOf`/`anyOf` variants, other `additionalProperties` changes. Never trips `--fail-on-breaking` |
+
+When a property is removed, the accompanying "removed from `required`" row for that property is not reported — the property going away is the change.
+
+**Exit codes.** `0` — no breaking changes (or `--fail-on-breaking` not given); `1` — a spec failed to parse or the output could not be written; `2` — usage error; `3` — breaking changes found and `--fail-on-breaking` was given. The full report is always written before exiting.
+
+`--report` appends a `## Deltas` section with the spec hygiene counts for both versions and the estimated token size of each at `--detail full --include-schemas`, so a spec update's documentation cost is visible alongside its API changes. `-o FILE` writes the report to a file (the subcommand has its own `-o`; the conversion flags do not apply to `diff`).
+
+**Known limitations.** Only the first media type of a request body or response is compared. A path-template rename (`/pets/{id}` → `/pets/{petId}`) appears as a removal plus an addition. `allOf`/`oneOf`/`anyOf` lists are compared index-wise, so reordering variants is reported as changes. The model drops `null` from OpenAPI 3.1 type arrays (`type: ["string", "null"]` is folded to `string`), so a nullability change expressed as a type array is not detected — only `nullable: true`/`false` is.
+
 ## Continuous integration
 
 Generate your API docs in CI with the [vimanam GitHub Action](https://github.com/noemaforge/vimanam-action) — it downloads the matching prebuilt binary (no Rust toolchain on the runner), verifies its SHA256 checksum, and runs vimanam:
@@ -296,6 +374,15 @@ Generate your API docs in CI with the [vimanam GitHub Action](https://github.com
 # Output is deterministic, so this fails CI when the committed docs drift from the spec:
 - run: git diff --exit-code -- docs/api-map.md
 ```
+
+To block a pull request that breaks API clients, diff the proposed spec against the one on the default branch; exit status 3 means breaking changes were found (see [Comparing spec versions](#comparing-spec-versions)):
+
+```yaml
+- run: git show origin/main:openapi.json > /tmp/openapi-main.json
+- run: vimanam diff /tmp/openapi-main.json openapi.json --report --fail-on-breaking -o api-diff.md
+```
+
+Write the report with `-o` rather than piping it through `tee`: a pipeline would return `tee`'s exit status, not vimanam's, unless the shell runs with `pipefail`. `api-diff.md` is still written when the step fails, so a later step (`if: always()`) can upload it or post it as a pull-request comment.
 
 Pin the action to a commit SHA, not a mutable tag — see the action's [Pinning](https://github.com/noemaforge/vimanam-action#pinning) notes. More patterns in [`examples/`](https://github.com/noemaforge/vimanam-action/tree/main/examples).
 

@@ -1,0 +1,181 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Widgets API",
+    "version": "1.1.0"
+  },
+  "tags": [
+    { "name": "Widgets", "description": "Widget operations" },
+    { "name": "Legacy", "description": "Retired operations" }
+  ],
+  "paths": {
+    "/widgets": {
+      "get": {
+        "tags": ["Widgets"],
+        "summary": "List widgets",
+        "operationId": "Widgets_ListWidgets",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of widgets",
+            "schema": { "type": "integer", "format": "int32" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A widget",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Widget" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Widgets"],
+        "summary": "Create a widget",
+        "operationId": "Widgets_CreateWidget",
+        "parameters": [
+          {
+            "name": "X-Trace",
+            "in": "header",
+            "description": "Correlation identifier propagated to downstream calls",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Widget to create",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WidgetInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Widget" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/widgets/{id}": {
+      "get": {
+        "tags": ["Widgets"],
+        "summary": "Get a widget",
+        "operationId": "Widgets_GetWidget",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Widget identifier",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": true,
+            "description": "Fields to return",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The widget",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Widget" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Widgets"],
+        "summary": "Delete a widget",
+        "operationId": "Widgets_RemoveWidget",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Widget identifier",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/widgets/{id}/history": {
+      "get": {
+        "tags": ["Widgets"],
+        "operationId": "Widgets_GetWidgetHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Widget identifier",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Change history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Widget" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Widget": {
+        "type": "object",
+        "required": ["id", "name", "pricing"],
+        "properties": {
+          "id": { "type": "string", "description": "Widget identifier" },
+          "name": { "type": "string", "description": "Display name" },
+          "weight": { "type": "number", "format": "float" },
+          "status": { "type": "string", "enum": ["active", "retired"] },
+          "pricing": {
+            "type": "object",
+            "description": "Price information",
+            "properties": {
+              "amount": { "type": "number" },
+              "currency": { "type": "string" }
+            }
+          }
+        }
+      },
+      "WidgetInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "description": "Human-readable display name" },
+          "weight": { "type": "number", "format": "double", "description": "Weight in kilograms" }
+        }
+      }
+    }
+  }
+}

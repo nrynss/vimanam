@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
 use std::path::PathBuf;
 
@@ -122,6 +122,48 @@ pub enum Commands {
         #[arg(value_enum)]
         shell: Shell,
     },
+    /// Compare two versions of a spec and report what changed, classified as
+    /// breaking, non-breaking or needing review
+    ///
+    /// Endpoints are matched by method and path, parameters by name and
+    /// location, responses by status code. Request and response bodies are
+    /// compared as fully resolved schemas, so a change to a shared component
+    /// schema is reported on every endpoint that references it. Only the
+    /// first media type of a body or response is compared.
+    ///
+    /// Example: `vimanam diff v1/openapi.json v2/openapi.json --fail-on-breaking`
+    Diff(DiffArgs),
+}
+
+/// Arguments of the `diff` subcommand. It has its own `-o/--output` because
+/// the top-level conversion flags conflict with subcommands.
+#[derive(Args, Debug)]
+pub struct DiffArgs {
+    /// The older spec (JSON or YAML)
+    #[arg(value_name = "OLD")]
+    pub old: PathBuf,
+
+    /// The newer spec (JSON or YAML)
+    #[arg(value_name = "NEW")]
+    pub new: PathBuf,
+
+    /// Append a Deltas section: spec hygiene counts for both specs and the
+    /// estimated token size of each at --detail full --include-schemas
+    #[arg(long)]
+    pub report: bool,
+
+    /// Exit with status 3 when any breaking change is found, after writing the
+    /// full report
+    ///
+    /// Exit codes: 0 no breaking changes (changes needing review do not
+    /// count), 1 a spec failed to parse or the output could not be written,
+    /// 2 usage error, 3 breaking changes found
+    #[arg(long)]
+    pub fail_on_breaking: bool,
+
+    /// Write the diff to FILE instead of stdout
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]

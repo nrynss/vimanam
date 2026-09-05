@@ -1,4 +1,5 @@
 mod config;
+mod diff;
 mod markdown;
 mod models;
 mod parser;
@@ -8,13 +9,14 @@ mod utils;
 
 use std::fs::File;
 use std::io::{BufWriter, Write, stdout};
-use std::process;
+use std::path::Path;
+use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
 use clap::{CommandFactory, Parser};
 use log::info;
 
-use crate::config::{Cli, Commands, build_config};
+use crate::config::{Cli, Commands, DiffArgs, build_config};
 use crate::markdown::generate_markdown;
 use crate::models::{ApiDocumentation, DocConfig};
 use crate::parser::parse_openapi;
@@ -52,9 +54,54 @@ fn write_output<W: Write>(
     Ok(())
 }
 
+/// Exit status of `diff --fail-on-breaking` when a breaking change was found.
+/// Distinct from 1 (runtime error) and 2 (usage error) so CI can tell "the
+/// spec is incompatible" from "the spec failed to parse".
+const EXIT_BREAKING_CHANGES: u8 = 3;
+
+/// Runs `vimanam diff <OLD> <NEW>`: parses both specs, writes the comparison
+/// (with deltas under `--report`) to the file or stdout, and returns exit
+/// status 3 under `--fail-on-breaking` when a breaking change was found. The
+/// full report is always written first.
+fn run_diff(args: &DiffArgs) -> Result<ExitCode> {
+    let old = parse_openapi(&args.old)
+        .with_context(|| format!("Failed to parse OpenAPI file: {:?}", args.old))?;
+    let new = parse_openapi(&args.new)
+        .with_context(|| format!("Failed to parse OpenAPI file: {:?}", args.new))?;
+
+    let spec_diff = diff::diff(&old, &new);
+    let deltas = if args.report {
+        Some(diff::compute_deltas(&old, &new).context("Failed to compute deltas")?)
+    } else {
+        None
+    };
+
+    match &args.output {
+        Some(output_path) => {
+            let mut writer = BufWriter::new(create_output_file(output_path)?);
+            diff::write_diff(&mut writer, &spec_diff, deltas.as_ref())
+                .context("Failed to write diff")?;
+            writer.flush().context("Failed to write diff")?;
+            info!("Diff written to: {:?}", output_path);
+        }
+        None => diff::write_diff(&mut stdout(), &spec_diff, deltas.as_ref())
+            .context("Failed to write diff")?,
+    }
+
+    if args.fail_on_breaking && spec_diff.has_breaking() {
+        return Ok(ExitCode::from(EXIT_BREAKING_CHANGES));
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn create_output_file(path: &Path) -> Result<File> {
+    File::create(path).with_context(|| format!("Failed to create output file: {:?}", path))
+}
+
 /// Parses CLI arguments, parses the spec, and writes markdown to the
-/// requested output (file or stdout).
-fn run() -> Result<()> {
+/// requested output (file or stdout). Returns the process exit status for
+/// the success paths; errors are mapped to status 1 by `main`.
+fn run() -> Result<ExitCode> {
     // Initialize logger
     env_logger::init();
 
@@ -64,11 +111,12 @@ fn run() -> Result<()> {
     // Subcommands short-circuit the conversion pipeline. The match is
     // exhaustive so a new `Commands` variant fails to compile here instead of
     // falling through to the "missing input file" error below.
-    match cli.command {
+    match &cli.command {
         Some(Commands::Completions { shell }) => {
-            clap_complete::generate(shell, &mut Cli::command(), "vimanam", &mut stdout());
-            return Ok(());
+            clap_complete::generate(*shell, &mut Cli::command(), "vimanam", &mut stdout());
+            return Ok(ExitCode::SUCCESS);
         }
+        Some(Commands::Diff(args)) => return run_diff(args),
         None => {}
     }
 
@@ -91,15 +139,13 @@ fn run() -> Result<()> {
     if cli.stats {
         let stats = stats::compute(&api_doc, &config).context("Failed to compute stats")?;
         stats::write_stats(&mut stdout(), &stats).context("Failed to write stats")?;
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
 
     // Generate markdown
     if let Some(output_path) = &cli.output {
         // Write to file
-        let file = File::create(output_path)
-            .with_context(|| format!("Failed to create output file: {:?}", output_path))?;
-        let mut writer = BufWriter::new(file);
+        let mut writer = BufWriter::new(create_output_file(output_path)?);
 
         write_output(&mut writer, &api_doc, &config)?;
 
@@ -111,12 +157,15 @@ fn run() -> Result<()> {
         write_output(&mut writer, &api_doc, &config)?;
     }
 
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
-fn main() {
-    if let Err(err) = run() {
-        eprintln!("Error: {:#}", err);
-        process::exit(1);
+fn main() -> ExitCode {
+    match run() {
+        Ok(code) => code,
+        Err(err) => {
+            eprintln!("Error: {:#}", err);
+            ExitCode::from(1)
+        }
     }
 }

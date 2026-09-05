@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of Markdown, honouring `--detail`, grouping and filter flags. Sizes
   slices before choosing `--service-filter`/`--detail`/`--max-tokens`. Conflicts
   with `-o` and `--max-tokens`; the hygiene report is never included (#42).
+- `vimanam diff <OLD> <NEW>` subcommand comparing two versions of a spec.
+  Endpoints are matched by method and path, parameters by name and location,
+  responses by status code; request and response bodies are compared as fully
+  resolved schemas, so a change behind a shared `$ref` is reported on every
+  endpoint that references it. Each change is classified as breaking,
+  non-breaking or needing review; `--fail-on-breaking` exits 3 when a breaking
+  change is found, `--report` appends hygiene-count and token-estimate deltas,
+  and `-o` writes the report to a file (#45).
 
 ### Changed
 
