@@ -236,13 +236,15 @@ Options:
       --include-schemas                    Include request/response schemas
       --inline-schemas                     Fully inline every $ref schema instead of linking to a shared "Schema Definitions" section
       --include-examples                   Include request/response examples
-      --include-auth                       Show authentication requirements and server URLs
+      --include-auth                       Show authentication requirements
+      --toc                                Include the table of contents (the default; when both are given, the later of --toc/--no-toc wins)
       --no-toc                             Skip table of contents
       --sort <alpha|path-length|none>      Sorting method [default: alpha]
       --max-tokens <N>                     Fit output to a token budget, stepping detail down as needed (the hygiene report is appended outside the budget)
       --no-report                          Skip the spec hygiene report appended after the documentation
       --stats                              Dry run: print a per-service table of visible endpoints and estimated tokens instead of Markdown (TOTAL is one whole-document render, not the sum of the rows)
   -h, --help                               Print help
+  -V, --version                            Print version
 ```
 
 ```
