@@ -14,6 +14,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A "no effect" warning when `--required-only` is combined with `--detail basic`
   or `--detail summary`, matching the existing `--include-schemas`/`--include-examples`
   warnings.
+- `vimanam completions <SHELL>` subcommand printing bash/zsh/fish/PowerShell/Elvish
+  completion scripts to stdout (#41).
+- A spec hygiene report, appended after the documentation and separated by a
+  horizontal rule, that counts and lists operations missing a description,
+  `operationId` or documented responses, deprecated and untagged operations,
+  duplicate `operationId`s, and parameters without a description. It covers the
+  same endpoints the documentation does (filters narrow it too). On by default;
+  `--no-report` disables it (#44).
+- `--stats` dry run: prints a plain-text table of visible endpoint counts and
+  estimated token sizes (chars/4) per service, plus a whole-document TOTAL,
+  instead of Markdown, honouring `--detail`, grouping and filter flags. Sizes
+  slices before choosing `--service-filter`/`--detail`/`--max-tokens`. Conflicts
+  with `-o` and `--max-tokens`; the hygiene report is never included (#42).
+
+### Changed
+
+- Output now ends with the spec hygiene report unless `--no-report` is given.
+  The report is not counted against `--max-tokens`, so pass `--no-report` when
+  the whole output must fit the budget (for example when feeding it to an LLM).
 
 ### Fixed
 

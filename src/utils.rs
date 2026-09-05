@@ -29,25 +29,14 @@ pub fn resolve_ref(spec_json: &serde_json::Value, reference: &str) -> Option<ser
         // Handle escaped JSON pointer components
         let unescaped = decode_json_pointer_token(component);
 
-        if let Some(obj) = current.as_object() {
-            if let Some(value) = obj.get(&unescaped) {
-                current = value;
-            } else {
-                return None; // Component not found
-            }
-        } else if let Some(arr) = current.as_array() {
-            if let Ok(index) = unescaped.parse::<usize>() {
-                if index < arr.len() {
-                    current = &arr[index];
-                } else {
-                    return None; // Index out of bounds
-                }
-            } else {
-                return None; // Invalid array index
-            }
-        } else {
-            return None; // Cannot navigate further
-        }
+        current = match current {
+            // Component not found -> None
+            serde_json::Value::Object(obj) => obj.get(&unescaped)?,
+            // Invalid or out-of-bounds index -> None
+            serde_json::Value::Array(arr) => arr.get(unescaped.parse::<usize>().ok()?)?,
+            // Cannot navigate further
+            _ => return None,
+        };
     }
 
     Some(current.clone())

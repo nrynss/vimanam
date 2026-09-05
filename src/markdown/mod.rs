@@ -19,6 +19,11 @@ use anyhow::Result;
 
 use crate::models::{ApiDocumentation, DetailLevel, DocConfig, GroupBy};
 
+// The report and stats modules reuse the views' notion of which endpoints and
+// services the rendered body covers, so their scope always matches the
+// document's.
+pub(crate) use views::{service_is_visible, visible_endpoints};
+
 /// Renders the documentation to `writer`.
 ///
 /// With `--max-tokens` set, this fits the output to the budget (see
@@ -36,7 +41,13 @@ pub fn generate_markdown<W: Write>(
 }
 
 /// Renders the documentation to `writer`, dispatching on detail level and grouping mode.
-fn render<W: Write>(writer: &mut W, doc: &ApiDocumentation, config: &DocConfig) -> Result<()> {
+///
+/// Crate-visible so `--stats` can size trial renders without a token budget.
+pub(crate) fn render<W: Write>(
+    writer: &mut W,
+    doc: &ApiDocumentation,
+    config: &DocConfig,
+) -> Result<()> {
     // For summary level, just generate the TOC
     if config.detail_level == DetailLevel::Summary {
         views::generate_summary(writer, doc, config)
@@ -116,8 +127,9 @@ fn generate_within_budget<W: Write>(
 
 /// Estimates the token count of rendered output with the common chars/4
 /// heuristic. Good enough to pick a detail level; a real tokenizer could
-/// replace this later.
-fn estimate_tokens(rendered: &[u8]) -> usize {
+/// replace this later. Shared with `--stats`, whose ~TOKENS column must agree
+/// with what `--max-tokens` would measure.
+pub(crate) fn estimate_tokens(rendered: &[u8]) -> usize {
     String::from_utf8_lossy(rendered)
         .chars()
         .count()

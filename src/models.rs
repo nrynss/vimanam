@@ -399,6 +399,11 @@ pub struct Endpoint {
     pub parameters: Vec<Parameter>,
     pub responses: IndexMap<String, Response>,
     pub deprecated: bool,
+    // True when the operation declared no usable tags and the parser attributed
+    // it to the default service. `services` alone can't reveal this: the default
+    // is the first declared tag, so an untagged endpoint looks identical to one
+    // explicitly tagged with it. The spec hygiene report reads this flag.
+    pub untagged: bool,
 }
 
 /// Configuration for documentation generation
@@ -422,6 +427,9 @@ pub struct DocConfig {
     // When set, the generator renders at progressively lower detail until the
     // estimated token count fits this budget (`--max-tokens`).
     pub max_tokens: Option<usize>,
+    // Append the spec hygiene report after the documentation (on by default;
+    // `--no-report` turns it off).
+    pub include_report: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -323,7 +323,9 @@ fn extract_endpoints(
             if let Some(operation) = operation_opt {
                 // Service tags filtered to known services, falling back to the
                 // default service when an operation has none (or only unknown ones).
-                let service_tags = operation
+                // `untagged` records that the fallback fired, since the default
+                // service name is indistinguishable from an explicit tag.
+                let known_tags = operation
                     .tags
                     .as_ref()
                     .map(|tags| {
@@ -332,8 +334,9 @@ fn extract_endpoints(
                             .cloned()
                             .collect::<Vec<_>>()
                     })
-                    .filter(|filtered| !filtered.is_empty())
-                    .unwrap_or_else(|| vec![default_service(services)]);
+                    .filter(|filtered| !filtered.is_empty());
+                let untagged = known_tags.is_none();
+                let service_tags = known_tags.unwrap_or_else(|| vec![default_service(services)]);
 
                 // Combine path-level and operation-level parameters with reference resolution
                 let mut parameters = path_parameters.clone();
@@ -402,6 +405,7 @@ fn extract_endpoints(
                     parameters,
                     responses: resolved_responses,
                     deprecated: operation.deprecated.unwrap_or(false),
+                    untagged,
                 });
             }
         }

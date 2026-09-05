@@ -1,0 +1,30 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Long Service Name API",
+    "version": "1.0.0"
+  },
+  "tags": [
+    { "name": "Long Service Name", "description": "A service whose name is wider than the SERVICE header" }
+  ],
+  "paths": {
+    "/widgets": {
+      "get": {
+        "tags": ["Long Service Name"],
+        "summary": "List widgets",
+        "operationId": "ListWidgets",
+        "responses": {
+          "200": { "description": "A list of widgets" }
+        }
+      },
+      "post": {
+        "tags": ["Long Service Name"],
+        "summary": "Create a widget",
+        "operationId": "CreateWidget",
+        "responses": {
+          "201": { "description": "Widget created" }
+        }
+      }
+    }
+  }
+}

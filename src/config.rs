@@ -1,4 +1,5 @@
-use clap::{Parser, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 use std::path::PathBuf;
 
 use crate::models::{DetailLevel, DocConfig, GroupBy, SortMethod};
@@ -6,10 +7,19 @@ use crate::models::{DetailLevel, DocConfig, GroupBy, SortMethod};
 #[derive(Parser, Debug)]
 #[command(name = "vimanam", version)]
 #[command(about = "OpenAPI to Markdown documentation generator", long_about = None)]
+// `input` is required for the conversion pipeline but must not be demanded when
+// a subcommand runs (`vimanam completions zsh`). Subcommands are not arguments,
+// so `required_unless_present` cannot name one; clap's idiom is to keep the
+// positional `required` and let the subcommand negate that requirement.
+// Conversion flags are meaningless alongside a subcommand, so they conflict.
+#[command(subcommand_negates_reqs = true, args_conflicts_with_subcommands = true)]
 pub struct Cli {
     /// Path to the OpenAPI JSON file
-    #[arg(value_name = "FILE")]
-    pub input: PathBuf,
+    #[arg(value_name = "FILE", required = true)]
+    pub input: Option<PathBuf>,
+
+    #[command(subcommand)]
+    pub command: Option<Commands>,
 
     /// Output file path
     #[arg(short, long, value_name = "FILE")]
@@ -82,9 +92,36 @@ pub struct Cli {
     pub sort: SortArg,
 
     /// Fit output to a token budget, stepping detail down (full → summary) as
-    /// needed; what was trimmed is reported on stderr
+    /// needed; what was trimmed is reported on stderr. The budget covers the
+    /// documentation body only: the spec hygiene report is still appended
+    /// outside it (add --no-report to drop it)
     #[arg(long, value_name = "N")]
     pub max_tokens: Option<usize>,
+
+    /// Skip the spec hygiene report appended after the documentation
+    #[arg(long)]
+    pub no_report: bool,
+
+    /// Dry run: instead of Markdown, print a plain-text table of visible
+    /// endpoints and estimated tokens (chars/4) per service at the configured
+    /// detail level and filters, to size slices before choosing
+    /// --service-filter/--detail/--max-tokens. Each row is a render of that
+    /// service alone; TOTAL is one render of the whole document, so it is not
+    /// necessarily the sum of the rows. The hygiene report is never included
+    #[arg(long, conflicts_with_all = ["output", "max_tokens"])]
+    pub stats: bool,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Generate shell completions and print them to stdout
+    ///
+    /// Example: `vimanam completions zsh > ~/.zfunc/_vimanam`
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -176,6 +213,7 @@ pub fn build_config(cli: &Cli) -> DocConfig {
         include_toc: cli.toc || !cli.no_toc,
         sort_method: cli.sort.into(),
         max_tokens: cli.max_tokens,
+        include_report: !cli.no_report,
     };
 
     // Warn if --include-schemas or --include-examples is set but detail is not
@@ -232,7 +270,8 @@ mod tests {
     #[test]
     fn test_detail_level_conversion() {
         let cli = Cli {
-            input: PathBuf::from("spec.json"),
+            input: Some(PathBuf::from("spec.json")),
+            command: None,
             output: None,
             method: false,
             group_by: GroupByArg::Service,
@@ -251,6 +290,8 @@ mod tests {
             no_toc: false,
             sort: SortArg::Alpha,
             max_tokens: None,
+            no_report: false,
+            stats: false,
         };
 
         let config = build_config(&cli);

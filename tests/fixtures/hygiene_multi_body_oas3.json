@@ -1,0 +1,29 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Multi Body API",
+    "version": "1.0.0"
+  },
+  "tags": [
+    { "name": "Items", "description": "Item operations" }
+  ],
+  "paths": {
+    "/items": {
+      "post": {
+        "tags": ["Items"],
+        "summary": "Create an item",
+        "operationId": "createItem",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "type": "object" } },
+            "application/xml": { "schema": { "type": "object" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    }
+  }
+}
